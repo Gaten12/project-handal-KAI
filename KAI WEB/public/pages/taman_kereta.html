@@ -1,0 +1,57 @@
+<!-- VIEW 4: IMPORT TAMAN KERETA -->
+            <section id="tamanKeretaView" class="view-page">
+                <!-- Step Indicator -->
+                <div class="tk-steps-bar">
+                    <div class="tk-step active" id="tkStep1Indicator">
+                        <div class="tk-step-num">1</div>
+                        <span>Upload Excel</span>
+                    </div>
+                    <div class="tk-step-line"></div>
+                    <div class="tk-step" id="tkStep2Indicator">
+                        <div class="tk-step-num">2</div>
+                        <span>Pilih Rangkaian</span>
+                    </div>
+                    <div class="tk-step-line"></div>
+                    <div class="tk-step" id="tkStep3Indicator">
+                        <div class="tk-step-num">3</div>
+                        <span>Download .st</span>
+                    </div>
+                </div>
+
+                <!-- Upload Area -->
+                <div class="tk-upload-area" id="tkUploadArea">
+                    <div class="tk-upload-card" id="tamanKeretaDropZone">
+                        <div class="tk-upload-icon">
+                            <i class="fa-solid fa-file-arrow-up"></i>
+                        </div>
+                        <div class="tk-upload-text">
+                            <h3>Upload Laporan Harian</h3>
+                            <p>Drag file .xlsx ke sini, atau klik untuk browse</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="document.getElementById('tkFileInput').click()">
+                            <i class="fa-solid fa-folder-open"></i> Pilih File
+                        </button>
+                        <input type="file" id="tkFileInput" accept=".xlsx,.xls" hidden>
+                        <div class="tk-upload-hint">
+                            <i class="fa-solid fa-circle-info"></i> Format: Laporan Harian Stam Formasi (.xlsx)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div id="tkResultContainer" style="display: none;">
+                    <div class="tk-result-header">
+                        <div>
+                            <h3><i class="fa-solid fa-train-subway"></i> Rangkaian Terdeteksi</h3>
+                            <p id="tkTanggalLabel">Tanggal: -</p>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('tkResultContainer').style.display='none'; document.getElementById('tkUploadArea').style.display='block'; document.getElementById('tkStep1Indicator').classList.add('active'); document.getElementById('tkStep2Indicator').classList.remove('active');">
+                            <i class="fa-solid fa-arrow-rotate-left"></i> Upload Ulang
+                        </button>
+                    </div>
+                    
+                    <div class="tk-cards-grid" id="tkCardsGrid">
+                        <!-- Cards injected by JS -->
+                    </div>
+                </div>
+            </section>

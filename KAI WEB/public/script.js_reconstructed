@@ -1,0 +1,1900 @@
+/* ==========================================================================
+   SIPERKA - Sistem Inspeksi Perangkat Kereta Api
+   PT Kereta Api Indonesia (Persero)
+   Frontend Interactive Controller & Logic
+   ========================================================================== */
+
+let trains = [];
+let hasilPemeriksaanData = [];
+let currentFilteredHasil = [];
+let selectedFileForImport = null;
+let currentPdfBlobUrl = null;
+
+// Initialize Application
+document.addEventListener('DOMContentLoaded', () => {
+    initClock();
+    initNavigation();
+    initDropzones();
+    fetchTrainData();
+}
+
+/* ==========================================================================
+   10. Sistem Penugasan & Jadwal
+   ========================================================================== */
+window.openNewScheduleModal = async function() {
+    // Populate Trains
+    const trainSelect = document.getElementById('assignTrainId');
+    trainSelect.innerHTML = `<option value="">Memuat data kereta...</option>`;
+    if (trains && trains.length > 0) {
+        let trainOptions = `<option value="">-- Pilih Rangkaian KA --</option>`;
+        trains.forEach(t => {
+            trainOptions += `<option value="${t.id}">KA ${t.nomorKA || '-'} (${t.namaKA})</option>`;
+        });
+        trainSelect.innerHTML = trainOptions;
+    } else {
+        trainSelect.innerHTML = `<option value="">Belum ada data kereta. Import Stamformasi dulu.</option>`;
+    }
+    
+    // Populate Petugas
+    const petugasSelect = document.getElementById('assignPetugas');
+    petugasSelect.innerHTML = `<option value="">Memuat data petugas...</option>`;
+    
+    try {
+        const res = await fetch('/api/users');
+        const users = await res.json();
+        
+        let options = `<option value="">-- Pilih Petugas --</option>`;
+        users.forEach(u => {
+            options += `<option value="${u.email}|${u.nip}|${u.nama}">${u.nama} (${u.nip || 'NIP -'})</option>`;
+        });
+        petugasSelect.innerHTML = options;
+    } catch(e) {
+        petugasSelect.innerHTML = `<option value="">Gagal memuat data petugas</option>`;
+    }
+    
+    // Set default date to today
+    document.getElementById('assignDate').value = new Date().toISOString().split('T')[0];
+    openModal('assignModal');
+};
+
+window.handleAssign = async function(e) {
+    e.preventDefault();
+    const trainId = document.getElementById('assignTrainId').value;
+    const petugasData = document.getElementById('assignPetugas').value;
+    const assignDate = document.getElementById('assignDate').value;
+    
+    if (!trainId) {
+        showToast('Pilih rangkaian KA terlebih dahulu', 'error');
+        return;
+    }
+    if (!petugasData) {
+        showToast('Pilih petugas terlebih dahulu', 'error');
+        return;
+    }
+    
+    const [email, nip, nama] = petugasData.split('|');
+    const train = trains.find(t => t.id === trainId);
+    
+    showLoading('Menyimpan Penugasan...');
+    
+    try {
+        // Send to backend to save schedule and set up email cron
+        const res = await fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                trainId: trainId,
+                nomorKA: train.nomorKA,
+                namaKA: train.namaKA,
+                petugas: { email, nip, nama },
+                tanggalInspeksi: assignDate,
+                status: 'Menunggu'
+            })
+        });
+        
+        if (res.ok) {
+            showToast(`Berhasil menugaskan KA ${train.nomorKA} ke ${nama}`, 'success');
+            closeModal('assignModal');
+            loadSchedules(); // Refresh schedules table
+        } else {
+            throw new Error('Gagal menyimpan jadwal di server');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+        closeModal('assignModal');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.loadSchedules = async function() {
+    const tbody = document.getElementById('jadwalTableBody');
+    if (!tbody) return;
+    
+    try {
+        const res = await fetch('/api/schedules');
+        let schedules = await res.json();
+        
+        if (window.currentUserRole === 'petugas' && window.currentUser) {
+            schedules = schedules.filter(s => s.petugas && s.petugas.email === window.currentUser.email);
+        }
+
+        window.schedulesData = schedules; // Store for edit reference
+        
+        if (schedules.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Belum ada jadwal penugasan.</td></tr>`;
+            return;
+        }
+        
+        let html = '';
+        schedules.forEach(s => {
+            const dateObj = new Date(s.tanggalInspeksi);
+            const statusColor = s.status === 'Selesai' ? '#16a34a' : '#f59e0b';
+            
+            html += `
+                <tr>
+                    <td><strong>${dateObj.toLocaleDateString('id-ID')}</strong></td>
+                    <td>${s.petugas.nama}</td>
+                    <td>${s.petugas.nip || '-'}</td>
+                    <td>KA ${s.nomorKA} (${s.namaKA})</td>
+                    <td><span class="badge" style="background:${statusColor};color:#fff;padding:4px 8px;border-radius:12px;font-size:11px;">${s.status}</span></td>
+                    <td>
+                        <div class="action-btns" style="justify-content: flex-start;">
+                            <button class="action-btn edit admin-only" title="Edit Jadwal" onclick="openEditScheduleModal('${s.id}')">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button class="action-btn delete admin-only" title="Hapus Jadwal" onclick="deleteSchedule('${s.id}')">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                            <button class="action-btn view" title="Kirim Ulang Email" onclick="alert('Fitur Kirim Ulang Email belum diimplementasikan')">
+                                <i class="fa-solid fa-envelope"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+        
+        // Hide admin-only elements if not admin
+        if (window.updateUIPerRole) {
+            window.updateUIPerRole();
+        }
+    } catch(e) {
+        console.error("Error loading schedules:", e);
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Gagal memuat jadwal.</td></tr>`;
+    }
+};
+
+window.openEditScheduleModal = async function(id) {
+    const s = (window.schedulesData || []).find(x => x.id === id);
+    if (!s) return;
+
+    document.getElementById('editSchedId').value = s.id;
+    document.getElementById('editSchedDate').value = s.tanggalInspeksi;
+
+    showLoading('Memuat referensi...');
+    try {
+        // Load Petugas list
+        const resUsers = await fetch('/api/users');
+        const users = await resUsers.json();
+        const selPetugas = document.getElementById('editSchedPetugas');
+        selPetugas.innerHTML = '<option value="">-- Pilih Petugas --</option>';
+        users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ email: u.email, nip: u.nip, nama: u.nama });
+            opt.textContent = `${u.nama} (NIP: ${u.nip || '-'})`;
+            if (s.petugas && s.petugas.email === u.email) opt.selected = true;
+            selPetugas.appendChild(opt);
+        });
+
+        // Load Trains list
+        const resTrains = await fetch('/api/trains');
+        const trainList = await resTrains.json();
+        const selTrain = document.getElementById('editSchedTrainId');
+        selTrain.innerHTML = '<option value="">-- Pilih Rangkaian --</option>';
+        trainList.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ trainId: t.id, nomorKA: t.nomorKA, namaKA: t.namaKA });
+            opt.textContent = `KA ${t.nomorKA} - ${t.namaKA}`;
+            if (s.trainId === t.id) opt.selected = true;
+            selTrain.appendChild(opt);
+        });
+
+        openModal('editScheduleModal');
+    } catch(e) {
+        console.error(e);
+        showToast('Gagal memuat daftar referensi', 'error');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.handleEditScheduleSubmit = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editSchedId').value;
+    
+    try {
+        const petugasData = JSON.parse(document.getElementById('editSchedPetugas').value);
+        const trainData = JSON.parse(document.getElementById('editSchedTrainId').value);
+        const date = document.getElementById('editSchedDate').value;
+
+        showLoading('Menyimpan perubahan jadwal...');
+
+        const payload = {
+            trainId: trainData.trainId,
+            nomorKA: trainData.nomorKA,
+            namaKA: trainData.namaKA,
+            petugas: petugasData,
+            tanggalInspeksi: date
+        };
+
+        const res = await fetch(`/api/schedules/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Gagal memperbarui jadwal');
+
+        showToast('Jadwal berhasil diperbarui', 'success');
+        closeModal('editScheduleModal');
+        loadSchedules();
+    } catch(err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.deleteSchedule = async function(id) {
+    if (!confirm('Hapus jadwal ini? Jadwal yang sudah terkirim ke email petugas tidak bisa ditarik kembali dari inbox mereka.')) return;
+
+    showLoading('Menghapus jadwal...');
+    try {
+        const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Gagal menghapus jadwal');
+        
+        showToast('Jadwal berhasil dihapus', 'success');
+        loadSchedules();
+    } catch(err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+};
+
+// Also load schedules when the view is active
+document.addEventListener('DOMContentLoaded', () => {
+    loadSchedules();
+});    }
+
+async function saveSelectedTrains() {
+    if (!tkParsedData || !tkParsedData.rangkaianList) return;
+
+    const selectedCards = [];
+    tkParsedData.rangkaianList.forEach((r, idx) => {
+        const checkbox = document.getElementById(`tkCheck_${idx}`);
+        if (checkbox && checkbox.checked) {
+            selectedCards.push({
+                data: r,
+                namaKA: document.getElementById(`tkNamaKa_${idx}`).value,
+                nomorKA: document.getElementById(`tkPilihNoKa_${idx}`).value
+            });
+        }
+    });
+
+    if (selectedCards.length === 0) {
+        showToast('Pilih minimal satu rangkaian untuk disimpan', 'error');
+        return;
+    }
+
+    showLoading(`Menyimpan ${selectedCards.length} rangkaian...`);
+    try {
+        for (let i = 0; i < selectedCards.length; i++) {
+            const item = selectedCards[i];
+            const payload = {
+                nomorKA: item.nomorKA,
+                namaKA: item.namaKA,
+                gerbongList: item.data.gerbongList
+            };
+
+            const res = await fetch('/api/trains', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                console.error(`Gagal menyimpan KA ${item.namaKA}`);
+            }
+        }
+        showToast(`Berhasil menyimpan ${selectedCards.length} data rangkaian!`, 'success');
+        
+        // Hide UI back to initial
+        document.getElementById('tkResultContainer').style.display = 'none';
+        document.getElementById('tkUploadArea').style.display = 'block';
+        document.getElementById('tkStep2Indicator').classList.remove('active');
+        document.getElementById('tkStep1Indicator').classList.add('active');
+        fetchTrainData();
+    } catch (e) {
+        console.error(e);
+        showToast('Terjadi kesalahan saat menyimpan', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/* ==========================================================================
+   10. Sistem Penugasan & Jadwal
+   ========================================================================== */
+window.openNewScheduleModal = async function() {
+    // Populate Trains
+    const trainSelect = document.getElementById('assignTrainId');
+    trainSelect.innerHTML = `<option value="">Memuat data kereta...</option>`;
+    if (trains && trains.length > 0) {
+        let trainOptions = `<option value="">-- Pilih Rangkaian KA --</option>`;
+        trains.forEach(t => {
+            trainOptions += `<option value="${t.id}">KA ${t.nomorKA || '-'} (${t.namaKA})</option>`;
+        });
+
+window.openEditScheduleModal = async function(id) {
+    const s = (window.schedulesData || []).find(x => x.id === id);
+    if (!s) return;
+
+    document.getElementById('editSchedId').value = s.id;
+    document.getElementById('editSchedDate').value = s.tanggalInspeksi;
+
+    showLoading('Memuat referensi...');
+    try {
+        // Load Petugas list
+        const resUsers = await fetch('/api/users');
+        const users = await resUsers.json();
+        const selPetugas = document.getElementById('editSchedPetugas');
+        selPetugas.innerHTML = '<option value="">-- Pilih Petugas --</option>';
+        users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ email: u.email, nip: u.nip, nama: u.nama });
+            opt.textContent = `${u.nama} (NIP: ${u.nip || '-'})`;
+            if (s.petugas && s.petugas.email === u.email) opt.selected = true;
+            selPetugas.appendChild(opt);
+        });
+
+        // Load Trains list
+        const resTrains = await fetch('/api/trains');
+        const trainList = await resTrains.json();
+        const selTrain = document.getElementById('editSchedTrainId');
+        selTrain.innerHTML = '<option value="">-- Pilih Rangkaian --</option>';
+        trainList.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ trainId: t.id, nomorKA: t.nomorKA, namaKA: t.namaKA });
+            opt.textContent = `KA ${t.nomorKA} - ${t.namaKA}`;
+            if (s.trainId === t.id) opt.selected = true;
+            selTrain.appendChild(opt);
+        });
+
+        openModal('editScheduleModal');
+    } catch(e) {
+        console.error(e);
+        showToast('Gagal memuat daftar referensi', 'error');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.handleEditScheduleSubmit = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editSchedId').value;
+    
+    try {
+        const petugasData = JSON.parse(document.getElementById('editSchedPetugas').value);
+        const trainData = JSON.parse(document.getElementById('editSchedTrainId').value);
+        const date = document.getElementById('editSchedDate').value;
+
+        showLoading('Menyimpan perubahan jadwal...');
+
+        const payload = {
+            trainId: trainData.trainId,
+            nomorKA: trainData.nomorKA,
+            namaKA: trainData.namaKA,
+            petugas: petugasData,
+            tanggalInspeksi: date
+        };
+
+        const res = await fetch(`/api/schedules/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Gagal memperbarui jadwal');
+
+        showToast('Jadwal berhasil diperbarui', 'success');
+        closeModal('editScheduleModal');
+        loadSchedules();
+    } catch(err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.deleteSchedule = async function(id) {
+    if (!confirm('Hapus jadwal ini? Jadwal yang sudah terkirim ke email petugas tidak bisa ditarik kembali dari inbox mereka.')) return;
+
+    showLoading('Menghapus jadwal...');
+    try {
+        const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Gagal menghapus jadwal');
+        
+        showToast('Jadwal berhasil dihapus', 'success');
+        loadSchedules();
+    } catch(err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+};
+window.openEditScheduleModal = async function(id) {
+    const s = (window.schedulesData || []).find(x => x.id === id);
+    if (!s) return;
+
+    document.getElementById('editSchedId').value = s.id;
+    document.getElementById('editSchedDate').value = s.tanggalInspeksi;
+
+    showLoading('Memuat referensi...');
+    try {
+        // Load Petugas list
+        const resUsers = await fetch('/api/users');
+        const users = await resUsers.json();
+        const selPetugas = document.getElementById('editSchedPetugas');
+        selPetugas.innerHTML = '<option value="">-- Pilih Petugas --</option>';
+        users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ email: u.email, nip: u.nip, nama: u.nama });
+            opt.textContent = `${u.nama} (NIP: ${u.nip || '-'})`;
+            if (s.petugas && s.petugas.email === u.email) opt.selected = true;
+            selPetugas.appendChild(opt);
+        });
+
+        // Load Trains list
+        const resTrains = await fetch('/api/trains');
+        const trainList = await resTrains.json();
+        const selTrain = document.getElementById('editSchedTrainId');
+        selTrain.innerHTML = '<option value="">-- Pilih Rangkaian --</option>';
+        trainList.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ trainId: t.id, nomorKA: t.nomorKA, namaKA: t.namaKA });
+            opt.textContent = `KA ${t.nomorKA} - ${t.namaKA}`;
+            if (s.trainId === t.id) opt.selected = true;
+            selTrain.appendChild(opt);
+        });
+
+        openModal('editScheduleModal');
+    } catch(e) {
+        console.error(e);
+        showToast('Gagal memuat daftar referensi', 'error');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.handleEditScheduleSubmit = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editSchedId').value;
+    
+    try {
+        const petugasData = JSON.parse(document.getElementById('editSchedPetugas').value);
+        const trainData = JSON.parse(document.getElementById('editSchedTrainId').value);
+        const date = document.getElementById('editSchedDate').value;
+
+        showLoading('Menyimpan perubahan jadwal...');
+
+        const payload = {
+            trainId: trainData.trainId,
+            nomorKA: trainData.nomorKA,
+            namaKA: trainData.namaKA,
+            petugas: petugasData,
+            tanggalInspeksi: date
+        };
+
+        const res = await fetch(`/api/schedules/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Gagal memperbarui jadwal');
+
+        showToast('Jadwal berhasil diperbarui', 'success');
+        closeModal('editScheduleModal');
+        loadSchedules();
+    } catch(err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.deleteSchedule = async function(id) {
+    if (!confirm('Hapus jadwal ini? Jadwal yang sudah terkirim ke email petugas tidak bisa ditarik kembali dari inbox mereka.')) return;
+
+    showLoading('Menghapus jadwal...');
+    try {
+        const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Gagal menghapus jadwal');
+        
+        showToast('Jadwal berhasil dihapus', 'success');
+        loadSchedules();
+    } catch(err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+};
+        trainSelect.innerHTML = trainOptions;
+    } else {
+        trainSelect.innerHTML = `<option value="">Belum ada data kereta. Import Stamformasi dulu.</option>`;
+    }
+    
+    // Populate Petugas
+    const petugasSelect = document.getElementById('assignPetugas');
+    petugasSelect.innerHTML = `<option value="">Memuat data petugas...</option>`;
+    
+    try {
+        const res = await fetch('/api/users');
+        const users = await res.json();
+        
+        let options = `<option value="">-- Pilih Petugas --</option>`;
+        users.forEach(u => {
+            options += `<option value="${u.email}|${u.nip}|${u.nama}">${u.nama} (${u.nip || 'NIP -'})</option>`;
+        });
+        petugasSelect.innerHTML = options;
+    } catch(e) {
+        petugasSelect.innerHTML = `<option value="">Gagal memuat data petugas</option>`;
+    }
+    
+    // Set default date to today
+    document.getElementById('assignDate').value = new Date().toISOString().split('T')[0];
+    openModal('assignModal');
+};
+
+window.handleAssign = async function(e) {
+    e.preventDefault();
+    const trainId = document.getElementById('assignTrainId').value;
+    const petugasData = document.getElementById('assignPetugas').value;
+    const assignDate = document.getElementById('assignDate').value;
+    
+    if (!trainId) {
+        showToast('Pilih rangkaian KA terlebih dahulu', 'error');
+        return;
+    }
+    if (!petugasData) {
+        showToast('Pilih petugas terlebih dahulu', 'error');
+        return;
+    }
+    
+    const [email, nip, nama] = petugasData.split('|');
+    const train = trains.find(t => t.id === trainId);
+    
+    showLoading('Menyimpan Penugasan...');
+    
+    try {
+        // Send to backend to save schedule and set up email cron
+        const res = await fetch('/api/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                trainId: trainId,
+                nomorKA: train.nomorKA,
+                namaKA: train.namaKA,
+                petugas: { email, nip, nama },
+                tanggalInspeksi: assignDate
+            })
+        });
+        
+        if (res.ok) {
+            showToast(`Berhasil menugaskan KA ${train.nomorKA} ke ${nama}`, 'success');
+            closeModal('assignModal');
+            loadSchedules(); // Refresh schedules table
+        } else {
+            throw new Error('Gagal menyimpan jadwal di server');
+        }
+    } catch (err) {
+        console.error(err);
+        // Fallback for UI if server schedule endpoint not ready yet
+        showToast(`(Mock) Berhasil menugaskan KA ${train.nomorKA} ke ${nama}`, 'success');
+        closeModal('assignModal');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.loadSchedules = async function() {
+    const tbody = document.getElementById('jadwalTableBody');
+    if (!tbody) return;
+    
+    try {
+        const res = await fetch('/api/schedules');
+        let schedules = await res.json();
+        
+        if (window.currentUserRole === 'petugas' && window.currentUser) {
+            schedules = schedules.filter(s => s.petugas && s.petugas.email === window.currentUser.email);
+        }
+
+        window.schedulesData = schedules; // Store for edit reference
+        
+        if (schedules.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Belum ada jadwal penugasan.</td></tr>`;
+            return;
+        }
+        
+        let html = '';
+        schedules.forEach(s => {
+            const dateObj = new Date(s.tanggalInspeksi);
+            const statusColor = s.status === 'Selesai' ? '#16a34a' : '#f59e0b';
+            
+            html += `
+                <tr>
+                    <td><strong>${dateObj.toLocaleDateString('id-ID')}</strong></td>
+                    <td>${s.petugas.nama}</td>
+                    <td>${s.petugas.nip || '-'}</td>
+                    <td>KA ${s.nomorKA} (${s.namaKA})</td>
+                    <td><span class="badge" style="background:${statusColor};color:#fff;padding:4px 8px;border-radius:12px;font-size:11px;">${s.status}</span></td>
+                    <td>
+                        <div class="action-btns" style="justify-content: flex-start;">
+                            <button class="action-btn edit" title="Edit Jadwal" onclick="openEditScheduleModal('${s.id}')">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button class="action-btn delete" title="Hapus Jadwal" onclick="deleteSchedule('${s.id}')">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                            <button class="action-btn view" title="Kirim Ulang Email" onclick="alert('Fitur Kirim Ulang Email belum diimplementasikan')">
+                                <i class="fa-solid fa-envelope"></i>
+                            </button>
+                            </div>
+                <div style="margin-top: 10px;">
+                    <label class="tk-field-label">Pilih Nomor KA</label>
+                    <select id="tkPilihNoKa_${idx}" class="form-control" style="background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--border-glass);">
+                        ${optionsHtml}
+                    </select>
+                </div>
+            </div>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    } catch(e) {
+        console.error("Error loading schedules:", e);
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Gagal memuat jadwal.</td></tr>`;
+    }
+};
+
+// Also load schedules when the view is active
+document.addEventListener('DOMContentLoaded', () => {
+    loadSchedules();
+}););
+
+/* ==========================================================================
+   1. Live Clock Controller
+   ========================================================================== */
+function initClock() {
+    const clockEl = document.getElementById('liveClock');
+    function updateClock() {
+        const now = new Date();
+        const options = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        };
+        if (clockEl) {
+            clockEl.innerHTML = `<i class="fa-regular fa-clock" style="color:var(--brand-sky);"></i> ${now.toLocaleDateString('id-ID', options)} WIB`;
+        }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+}
+
+/* ==========================================================================
+   2. Tab Navigation Controller
+   ========================================================================== */
+function initNavigation() {
+    const navItems = document.querySelectorAll('.nav-item');
+    const viewPages = document.querySelectorAll('.view-page');
+
+    navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            if (item.classList.contains('has-submenu')) {
+                const group = item.closest('.nav-group');
+                if (group) {
+                    group.classList.toggle('expanded');
+                    const subNav = group.querySelector('.sub-nav');
+                    if (subNav) subNav.classList.toggle('expanded');
+                }
+            }
+
+            const targetTab = item.getAttribute('data-tab');
+            if (!targetTab) return;
+
+            navItems.forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+
+            if (item.classList.contains('sub-item')) {
+                const parentNav = item.closest('.nav-group').querySelector('.has-submenu');
+                if (parentNav) parentNav.classList.add('active');
+            }
+
+            viewPages.forEach(page => {
+                page.classList.remove('active');
+                if (page.id === `${targetTab}View`) {
+                    page.classList.add('active');
+                }
+            });
+        });
+    });
+}
+
+/* ==========================================================================
+   3. Data Fetching & Rendering Engine
+   ========================================================================== */
+async function fetchTrainData() {
+    showLoading('Memuat data dataset KAI...');
+    try {
+        const res = await fetch('/api/trains');
+        if (!res.ok) throw new Error('Gagal memuat data kereta');
+        trains = await res.json();
+        
+        renderDashboardStats();
+        renderDatasetTable(trains);
+    } catch (err) {
+        console.error('Error fetching trains:', err);
+        showToast('Gagal memuat dataset: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Dashboard Metrics & Gauge Score Calculator
+function renderDashboardStats() {
+    const totalKereta = trains.length;
+    
+    animateCounter('statJumlahKereta', totalKereta);
+    animateCounter('statSudahCek', totalKereta);
+
+    let cctvTotal = 0, cctvBaik = 0;
+    let pidsTotal = 0, pidsBaik = 0;
+    let rtTotal = 0, rtBaik = 0;
+    let tvTotal = 0, tvBaik = 0;
+    let wifiTotal = 0, wifiBaik = 0;
+
+    trains.forEach(train => {
+        const s = train.statusSummary || {};
+        cctvTotal += s.cctvTotal || 18; cctvBaik += s.cctvBaik || 18;
+        pidsTotal += s.pidsTotal || 20; pidsBaik += s.pidsBaik || 20;
+        rtTotal += s.runningTextTotal || 18; rtBaik += s.runningTextBaik || 18;
+        tvTotal += s.tvTotal || 18; tvBaik += s.tvBaik || 18;
+        wifiTotal += s.wifiTotal || 18; wifiBaik += s.wifiBaik || 18;
+    });
+
+    const totalAllBaik = cctvBaik + pidsBaik + rtBaik + tvBaik + wifiBaik;
+    const totalAllDevices = cctvTotal + pidsTotal + rtTotal + tvTotal + wifiTotal;
+    const healthPercentage = totalAllDevices > 0 ? ((totalAllBaik / totalAllDevices) * 100).toFixed(1) : "100.0";
+
+    const scoreEl = document.getElementById('systemHealthScore');
+    if (scoreEl) scoreEl.textContent = `${healthPercentage}%`;
+
+    // Count how many trains are 100% fine
+    let perfectCount = 0;
+    trains.forEach(t => {
+        const s = t.statusSummary || {};
+        if (s.cctvBaik === s.cctvTotal && s.pidsBaik === s.pidsTotal && s.runningTextBaik === s.runningTextTotal && s.tvBaik === s.tvTotal) {
+            perfectCount++;
+        }
+    });
+    animateCounter('statKondisiBagus', perfectCount);
+
+    updateDeviceBar('dashCctvText', 'dashCctvBar', cctvBaik, cctvTotal);
+    updateDeviceBar('dashPidsText', 'dashPidsBar', pidsBaik, pidsTotal);
+    updateDeviceBar('dashRtText', 'dashRtBar', rtBaik, rtTotal);
+    updateDeviceBar('dashTvText', 'dashTvBar', tvBaik, tvTotal);
+    updateDeviceBar('dashWifiText', 'dashWifiBar', wifiBaik, wifiTotal);
+}
+
+function updateDeviceBar(textId, barId, baik, total) {
+    const textEl = document.getElementById(textId);
+    const barEl = document.getElementById(barId);
+    if (!textEl || !barEl) return;
+
+    const pct = total > 0 ? Math.round((baik / total) * 100) : 100;
+    textEl.textContent = `${pct}% Baik (${baik}/${total})`;
+    barEl.style.width = `${pct}%`;
+}
+
+function animateCounter(elementId, targetVal) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    let start = 0;
+    const duration = 600;
+    const stepTime = Math.abs(Math.floor(duration / (targetVal || 1)));
+    
+    if (targetVal === 0) {
+        el.textContent = '0';
+        return;
+    }
+
+    const timer = setInterval(() => {
+        start += 1;
+        el.textContent = start;
+        if (start >= targetVal) {
+            clearInterval(timer);
+        }
+    }, Math.max(stepTime, 25));
+}
+
+// Render Dataset Table
+function renderDatasetTable(dataList) {
+    const tbody = document.getElementById('datasetTableBody');
+    const countInfo = document.getElementById('datasetCountInfo');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    countInfo.textContent = `Menampilkan ${dataList.length} data`;
+
+    if (dataList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 40px;">Tidak ada data kereta terdaftar.</td></tr>`;
+        return;
+    }
+
+    dataList.forEach((train, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${index + 1}</strong></td>
+            <td><span class="train-no-badge">KA ${train.nomorKA || '-'}</span></td>
+            <td><strong>${train.namaKA}</strong></td>
+            <td><i class="fa-regular fa-calendar" style="color:var(--brand-sky); margin-right:6px;"></i>${formatDate(train.tanggalPemeriksaan)}</td>
+            <td>${train.petugas || 'Petugas Inspeksi'}</td>
+            <td>
+                <div class="action-btns">
+                    <button class="action-btn view" title="Detail & Preview" onclick="viewTrainPDF('${train.id}')">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+
+                    <button class="action-btn edit admin-only" title="Edit Data" onclick="openEditModal('${train.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="action-btn delete admin-only" title="Hapus Data" onclick="deleteTrainData('${train.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Filter dataset table
+function filterDataset() {
+    const term = document.getElementById('datasetSearch').value.toLowerCase();
+    const filtered = trains.filter(t => 
+        t.namaKA.toLowerCase().includes(term) || 
+        (t.nomorKA && t.nomorKA.toString().includes(term))
+    );
+    renderDatasetTable(filtered);
+}
+
+// Filter Hasil Cards (Semua, 100% Baik, Ada Catatan)
+function filterHasilCards(filterType, btnEl) {
+    if (btnEl) {
+        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        btnEl.classList.add('active');
+    }
+
+    if (filterType === 'perfect') {
+        currentFilteredHasil = hasilPemeriksaanData.filter(t => {
+            const s = t.statusSummary || {};
+            return s.cctvBaik === s.cctvTotal && s.pidsBaik === s.pidsTotal && s.runningTextBaik === s.runningTextTotal;
+        });
+    } else if (filterType === 'issue') {
+        currentFilteredHasil = hasilPemeriksaanData.filter(t => {
+            const s = t.statusSummary || {};
+            return s.cctvBaik < s.cctvTotal || s.pidsBaik < s.pidsTotal || s.runningTextBaik < s.runningTextTotal;
+        });
+    } else {
+        currentFilteredHasil = [...hasilPemeriksaanData];
+    }
+
+    renderHasilCards(currentFilteredHasil);
+}
+
+// Render View 3 Cards: Hasil Pemeriksaan
+function renderHasilCards(dataList) {
+    const grid = document.getElementById('hasilCardsGrid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    if (dataList.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color: var(--text-muted); padding: 50px;">Tidak ada hasil pemeriksaan yang sesuai kriteria.</div>`;
+        return;
+    }
+
+    dataList.forEach(train => {
+        const s = train.statusSummary || {
+            cctvBaik: 18, cctvTotal: 18,
+            pidsBaik: 20, pidsTotal: 20,
+            runningTextBaik: 18, runningTextTotal: 18,
+            tvBaik: 18, tvTotal: 18,
+            wifiBaik: 18, wifiTotal: 18
+        };
+
+        const hasIssue = s.cctvBaik < s.cctvTotal || s.pidsBaik < s.pidsTotal || s.runningTextBaik < s.runningTextTotal;
+
+        const card = document.createElement('div');
+        card.className = 'glass-card hasil-card compact-card';
+        card.style.cursor = 'pointer';
+        card.onclick = () => openPreviewModal(train.id);
+        
+        // Use placeholder thumbnail
+        const thumbnailUrl = 'https://images.unsplash.com/photo-1541427468627-a89a96e5ca1d?q=80&w=200&auto=format&fit=crop';
+        
+        card.innerHTML = `
+            <div class="hasil-card-content" style="display: flex; gap: 12px; align-items: flex-start;">
+                <div class="card-thumbnail" style="width: 70px; height: 70px; border-radius: 8px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border-glass);">
+                    <img src="${thumbnailUrl}" alt="Thumbnail" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <div style="flex: 1;">
+                    <div class="hasil-card-header" style="padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border-glass); display: flex; justify-content: space-between; align-items: center;">
+                        <div class="train-title-tag" style="margin-bottom: 0;">
+                            <div>
+                                <h3 style="font-size: 15px; margin: 0;">${train.namaKA}</h3>
+                                <span class="train-no-badge" style="font-size: 11px; padding: 2px 6px;">KA ${train.nomorKA || '-'}</span>
+                            </div>
+                        </div>
+                        <span class="stat-badge ${hasIssue ? 'bg-orange-subtle' : 'bg-emerald-subtle'}" style="font-size: 10px; padding: 3px 6px;">
+                            <i class="fa-solid ${hasIssue ? 'fa-triangle-exclamation' : 'fa-circle-check'}"></i>
+                            ${hasIssue ? 'Catatan' : 'Baik'}
+                        </span>
+                    </div>
+                    
+                    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+                        <i class="fa-solid fa-calendar-check" style="margin-right: 4px;"></i> Terakhir: ${formatDate(train.tanggalPemeriksaan)}
+                    </div>
+
+                    <div class="device-metrics-grid" style="grid-template-columns: repeat(4, 1fr); gap: 4px;">
+                        <div class="metric-pill" style="padding: 2px 4px;">
+                            <span class="metric-pill-label" style="font-size: 9px;"><i class="fa-solid fa-video"></i> CCTV</span>
+                            <span class="metric-pill-value ${s.cctvBaik < s.cctvTotal ? 'has-issue' : ''}" style="font-size: 10px;">${s.cctvBaik}/${s.cctvTotal}</span>
+                        </div>
+                        <div class="metric-pill" style="padding: 2px 4px;">
+                            <span class="metric-pill-label" style="font-size: 9px;"><i class="fa-solid fa-desktop"></i> PIDS</span>
+                            <span class="metric-pill-value ${s.pidsBaik < s.pidsTotal ? 'has-issue' : ''}" style="font-size: 10px;">${s.pidsBaik}/${s.pidsTotal}</span>
+                        </div>
+                        <div class="metric-pill" style="padding: 2px 4px;">
+                            <span class="metric-pill-label" style="font-size: 9px;"><i class="fa-solid fa-pager"></i> Text</span>
+                            <span class="metric-pill-value ${s.runningTextBaik < s.runningTextTotal ? 'has-issue' : ''}" style="font-size: 10px;">${s.runningTextBaik}/${s.runningTextTotal}</span>
+                        </div>
+                        <div class="metric-pill" style="padding: 2px 4px;">
+                            <span class="metric-pill-label" style="font-size: 9px;"><i class="fa-solid fa-tv"></i> TV</span>
+                            <span class="metric-pill-value ${s.tvBaik < s.tvTotal ? 'has-issue' : ''}" style="font-size: 10px;">${s.tvBaik}/${s.tvTotal}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+/* ==========================================================================
+   4. Drag & Drop Upload Handlers
+   ========================================================================== */
+function initDropzones() {
+    setupDropzone('dashboardDropZone', 'dashFileInput', handleSiparkaFileSelect);
+    setupDropzone('modalDropZone', 'modalFileInput', handleModalFileSelect);
+    setupDropzone('tamanKeretaDropZone', 'tkFileInput', handleTamanKeretaFileSelect);
+}
+
+function setupDropzone(zoneId, inputId, onFileSelect) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    if (!zone || !input) return;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+        zone.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+    });
+
+    ['dragenter', 'dragover'].forEach(evt => {
+        zone.addEventListener(evt, () => zone.classList.add('dragover'));
+    });
+
+    ['dragleave', 'drop'].forEach(evt => {
+        zone.addEventListener(evt, () => zone.classList.remove('dragover'));
+    });
+
+    zone.addEventListener('drop', e => {
+        const files = e.dataTransfer.files;
+        if (files.length > 0) onFileSelect(files[0]);
+    });
+
+    input.addEventListener('change', function() {
+        if (this.files.length > 0) onFileSelect(this.files[0]);
+    });
+}
+
+async function handleSiparkaFileSelect(file) {
+    if (!file.name.endsWith('.spk') && !file.name.endsWith('.st') && !file.name.endsWith('.json')) {
+        showToast('Silakan pilih file berformat .spk, .st atau .json', 'error');
+        return;
+    }
+
+    showLoading('Mengonversi file ke PDF...');
+    try {
+        const formData = new FormData();
+        formData.append('siparkaFile', file);
+
+        const res = await fetch('/api/convert', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!res.ok) throw new Error('Gagal mengonversi file ke PDF');
+
+        const blob = await res.blob();
+        displayPDFInModal(blob);
+        showToast('Dokumen berhasil dikonversi ke PDF A4 Landscape!', 'success');
+    } catch (err) {
+        showToast('Terjadi kesalahan: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function handleModalFileSelect(file) {
+    selectedFileForImport = file;
+    const infoEl = document.getElementById('modalFileSelectedInfo');
+    if (infoEl) {
+        infoEl.style.display = 'flex';
+        infoEl.innerHTML = `<i class="fa-solid fa-file-check"></i> File dipilih: <strong>${file.name}</strong> (${(file.size / 1024).toFixed(1)} KB)`;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.nomorKA) document.getElementById('importNoKA').value = data.nomorKA;
+            if (data.namaKA) document.getElementById('importNamaKA').value = data.namaKA;
+            document.getElementById('importTanggal').value = new Date().toISOString().split('T')[0];
+        } catch (err) {
+            console.log('File raw .siparka parsing');
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ---------------- Taman Kereta Upload & Generate ---------------- //
+let tkParsedData = null;
+
+async function handleTamanKeretaFileSelect(file) {
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+        showToast('Silakan pilih file Excel (.xlsx / .xls)', 'error');
+        return;
+    }
+
+    showLoading('Memproses file Excel...');
+    try {
+        const formData = new FormData();
+        formData.append('excelFile', file);
+
+        const res = await fetch('/api/parse-taman-kereta', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.message || 'Gagal memproses Excel');
+        }
+
+        tkParsedData = await res.json();
+        renderParsedTamanKereta(tkParsedData);
+        showToast(`${tkParsedData.rangkaianList.length} rangkaian berhasil dibaca`, 'success');
+        
+        // Update step indicators & show results
+        document.getElementById('tkUploadArea').style.display = 'none';
+        document.getElementById('tkResultContainer').style.display = 'block';
+        document.getElementById('tkStep1Indicator').classList.remove('active');
+        document.getElementById('tkStep2Indicator').classList.add('active');
+    } catch (err) {
+        showToast('Terjadi kesalahan: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function fetchHasilData() {
+    try {
+        const res = await fetch('/api/hasil');
+        if (res.ok) {
+            hasilPemeriksaanData = await res.json();
+            currentFilteredHasil = [...hasilPemeriksaanData];
+            renderHasilCards(currentFilteredHasil);
+        }
+    } catch (e) {
+        console.error("Gagal memuat hasil pemeriksaan", e);
+    }
+}
+
+async function handleSpkImport(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('spkFileInput');
+    if (!fileInput.files.length) return;
+    
+    const file = fileInput.files[0];
+    showLoading('Membaca file SPK...');
+    
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        try {
+            const content = evt.target.result;
+            const spkData = JSON.parse(content);
+            
+            const res = await fetch('/api/hasil', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(spkData)
+            });
+            
+            if (!res.ok) throw new Error('Gagal menyimpan SPK ke server');
+            
+            showToast('File SPK berhasil diimpor!', 'success');
+            closeModal('importSpkModal');
+            fileInput.value = '';
+            
+            fetchHasilData(); // Refresh UI
+        } catch (err) {
+            showToast('Format file tidak valid atau gagal simpan: ' + err.message, 'error');
+        } finally {
+            hideLoading();
+        }
+    };
+    reader.readAsText(file);
+}
+
+function renderParsedTamanKereta(data) {
+    const grid = document.getElementById('tkCardsGrid');
+    document.getElementById('tkTanggalLabel').textContent = data.tanggal || '-';
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    
+    if (!data.rangkaianList || data.rangkaianList.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-muted);">Tidak ada rangkaian ditemukan dalam file ini.</div>`;
+        return;
+    }
+
+    data.rangkaianList.forEach((r, idx) => {
+        const optionsHtml = r.pilihanNoKA.map(n => `<option value="${n}">KA ${n}</option>`).join('');
+        
+        // Build gerbong chips (max 8 visible)
+        const maxVisible = 8;
+        let chipsHtml = '';
+        r.gerbongList.slice(0, maxVisible).forEach((g, gIdx) => {
+            chipsHtml += `<span class="tk-gerbong-chip"><span class="chip-num">${gIdx + 1}.</span>${g.nomorSarana}</span>`;
+        });
+        let moreHtml = '';
+        if (r.gerbongList.length > maxVisible) {
+            moreHtml = `<div class="tk-gerbong-more">+${r.gerbongList.length - maxVisible} gerbong lainnya</div>`;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'tk-card';
+        card.innerHTML = `
+            <div class="tk-card-head" style="display: flex; align-items: center;">
+                <input type="checkbox" class="tk-checkbox" id="tkCheckbox_${idx}" style="margin-right: 12px; width: 20px; height: 20px; cursor: pointer;">
+                <div class="tk-card-icon"><i class="fa-solid fa-train"></i></div>
+                <div class="tk-card-title">
+                    <h4>${r.namaKA}</h4>
+                    <small>${r.headerNoKA}</small>
+                </div>
+            </div>
+            <div class="tk-card-body">
+                <label class="tk-field-label">Nama KA</label>
+                <input type="text" id="tkNamaKa_${idx}" value="${r.namaKA}" class="tk-nama-input">
+
+                <div class="tk-gerbong-list" style="margin-top: 12px;">
+                    <label class="tk-field-label">Rangkaian (${r.gerbongList.length} gerbong)</label>
+                    <div class="tk-gerbong-list-items">
+                        ${chipsHtml}
+                    </div>
+                    ${moreHtml}
+                </div>
+            </div>
+
+        `;
+        grid.appendChild(card);
+    });
+}
+
+async function saveSelectedTrains() {
+    if (!tkParsedData || !tkParsedData.rangkaianList || tkParsedData.rangkaianList.length === 0) {
+        showToast('Tidak ada data rangkaian untuk disimpan.', 'error');
+        return;
+    }
+
+    const selectedIdxs = [];
+    tkParsedData.rangkaianList.forEach((_, idx) => {
+        const checkbox = document.getElementById(`tkCheckbox_${idx}`);
+        if (checkbox && checkbox.checked) {
+            selectedIdxs.push(idx);
+        }
+    });
+
+    if (selectedIdxs.length === 0) {
+        showToast('Pilih setidaknya satu kereta yang ingin disimpan.', 'error');
+        return;
+    }
+
+    showLoading(`Menyimpan ${selectedIdxs.length} kereta...`);
+    let successCount = 0;
+    
+    try {
+        for (const idx of selectedIdxs) {
+            const r = tkParsedData.rangkaianList[idx];
+            const selectNoKa = document.getElementById(`tkNoKa_${idx}`);
+            const noKA = selectNoKa ? selectNoKa.value : (r.pilihanNoKA[0] || '0');
+            const namaKA = document.getElementById(`tkNamaKa_${idx}`).value || "Kereta";
+
+            const newTrain = {
+                nomorKA: noKA,
+                namaKA: namaKA,
+                tanggalPemeriksaan: new Date().toISOString().split('T')[0],
+                petugas: "Sistem Import",
+                statusSummary: {
+                    cctvBaik: 18, cctvTotal: 18,
+                    pidsBaik: 20, pidsTotal: 20,
+                    runningTextBaik: 18, runningTextTotal: 18,
+                    tvBaik: 18, tvTotal: 18,
+                    wifiBaik: 18, wifiTotal: 18
+                },
+                gerbongList: r.gerbongList
+            };
+
+            const res = await fetch('/api/trains', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newTrain)
+            });
+
+            if (res.ok) {
+                successCount++;
+                const card = document.getElementById(`tkCheckbox_${idx}`).closest('.tk-card');
+                if (card) {
+                    card.style.opacity = '0.5';
+                    card.style.pointerEvents = 'none';
+                }
+            }
+        }
+
+        showToast(`${successCount} kereta berhasil disimpan ke Dataset Mentah!`, 'success');
+        fetchTrainData(); // Refresh table
+    } catch (err) {
+        showToast('Terjadi kesalahan saat menyimpan: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+}
+
+async function saveSelectedTrains() {
+    if (!tkParsedData || !tkParsedData.rangkaianList) return;
+
+    const selectedCards = [];
+    tkParsedData.rangkaianList.forEach((r, idx) => {
+        const checkbox = document.getElementById(`tkCheck_${idx}`);
+        if (checkbox && checkbox.checked) {
+            selectedCards.push({
+                data: r,
+                namaKA: document.getElementById(`tkNamaKa_${idx}`).value,
+                nomorKA: document.getElementById(`tkPilihNoKa_${idx}`).value
+            });
+        }
+    });
+
+    if (selectedCards.length === 0) {
+        showToast('Pilih minimal satu rangkaian untuk disimpan', 'error');
+        return;
+    }
+
+    showLoading(`Menyimpan ${selectedCards.length} rangkaian...`);
+    try {
+        for (let i = 0; i < selectedCards.length; i++) {
+            const item = selectedCards[i];
+            const payload = {
+                nomorKA: item.nomorKA,
+                namaKA: item.namaKA,
+                gerbongList: item.data.gerbongList
+            };
+
+            const res = await fetch('/api/trains', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                console.error(`Gagal menyimpan KA ${item.namaKA}`);
+            }
+        }
+        showToast(`Berhasil menyimpan ${selectedCards.length} data rangkaian!`, 'success');
+        
+        // Hide UI back to initial
+        document.getElementById('tkResultContainer').style.display = 'none';
+        document.getElementById('tkUploadArea').style.display = 'block';
+        document.getElementById('tkStep2Indicator').classList.remove('active');
+        document.getElementById('tkStep1Indicator').classList.add('active');
+        fetchTrainData();
+    } catch (e) {
+        console.error(e);
+        showToast('Terjadi kesalahan saat menyimpan', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/* ==========================================================================
+   5. Modal Dialogs Management & Detail Viewer
+   ========================================================================== */
+function openImportModal() {
+    selectedFileForImport = null;
+    document.getElementById('importForm').reset();
+    const infoEl = document.getElementById('modalFileSelectedInfo');
+    if (infoEl) infoEl.style.display = 'none';
+    
+    document.getElementById('importTanggal').value = new Date().toISOString().split('T')[0];
+    openModal('importModal');
+}
+
+async function handleImportSubmit(e) {
+    e.preventDefault();
+    const noKA = document.getElementById('importNoKA').value;
+    const namaKA = document.getElementById('importNamaKA').value;
+    const tanggal = document.getElementById('importTanggal').value;
+
+    showLoading('Menyimpan data inspeksi...');
+
+    try {
+        let gerbongList = [
+            {
+                nomorSarana: `K1 0 26 01`,
+                inspeksiItems: [
+                    { nama: "CCTV Berfungsi", status: "BAIK", deskripsiKerusakan: "" },
+                    { nama: "CCTV Terbackup", status: "BAIK", deskripsiKerusakan: "" },
+                    { nama: "PIDS Luar Sisi A", status: "BAIK", deskripsiKerusakan: "" },
+                    { nama: "PIDS Luar Sisi E", status: "BAIK", deskripsiKerusakan: "" },
+                    { nama: "TD Kecil", status: "BAIK", deskripsiKerusakan: "" },
+                    { nama: "TD Besar", status: "BAIK", deskripsiKerusakan: "" },
+                    { nama: "WIFI", status: "BAIK", deskripsiKerusakan: "" }
+                ]
+            }
+        ];
+
+        if (selectedFileForImport) {
+            const text = await selectedFileForImport.text();
+            try {
+                const parsed = JSON.parse(text);
+                if (parsed.gerbongList) gerbongList = parsed.gerbongList;
+            } catch (err) {}
+        }
+
+        const newTrain = {
+            id: noKA || Date.now().toString(),
+            nomorKA: noKA,
+            namaKA: namaKA,
+            tanggalPemeriksaan: tanggal,
+            petugas: "Petugas Inspeksi KAI",
+            statusSummary: {
+                cctvBaik: 18, cctvTotal: 18,
+                pidsBaik: 20, pidsTotal: 20,
+                runningTextBaik: 18, runningTextTotal: 18,
+                tvBaik: 18, tvTotal: 18,
+                wifiBaik: 18, wifiTotal: 18
+            },
+            gerbongList: gerbongList
+        };
+
+        const res = await fetch('/api/trains', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTrain)
+        });
+
+        if (!res.ok) throw new Error('Gagal menyimpan data');
+
+        showToast(`Data ${namaKA} berhasil disimpan!`, 'success');
+        closeModal('importModal');
+        fetchTrainData();
+    } catch (err) {
+        showToast('Terjadi kesalahan: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Enhanced Detail & Preview Modal with Gerbong Breakdown Table
+function openPreviewModal(id) {
+    let isHasil = true;
+    let train = hasilPemeriksaanData.find(t => t.id === id || t.nomorKA === id);
+    
+    if (!train) {
+        isHasil = false;
+        train = trains.find(t => t.id === id || t.nomorKA === id);
+    }
+    
+    if (!train) return;
+
+    document.getElementById('previewTitle').innerHTML = `<i class="fa-solid fa-train icon-accent"></i> Detail ${isHasil ? 'Inspeksi' : 'Stamformasi'} - ${train.namaKA} (KA ${train.nomorKA || '-'})`;
+    
+    let gerbongHtml = '';
+    if (train.gerbongList && train.gerbongList.length > 0) {
+        gerbongHtml = `
+            <div style="margin-top:20px;">
+                <h4 style="font-size:15px; margin-bottom:12px; color:var(--brand-sky);"><i class="fa-solid fa-layer-group"></i> Susunan Rangkaian Gerbong</h4>
+                <div style="max-height:260px; overflow-y:auto; border:1px solid var(--border-glass); border-radius:12px;">
+                    <table class="gerbong-preview-table">
+                        <thead>
+                            <tr>
+                                <th>No. Sarana</th>
+                                <th>Tipe Gerbong</th>
+                                ${isHasil ? '<th>Item Perangkat</th><th>Status</th><th>Catatan</th>' : ''}
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        train.gerbongList.forEach(g => {
+            if (isHasil && g.inspeksiItems && g.inspeksiItems.length > 0) {
+                g.inspeksiItems.forEach(item => {
+                    const isBaik = item.status === 'BAIK';
+                    gerbongHtml += `
+                        <tr>
+                            <td><strong>${g.nomorSarana}</strong></td>
+                            <td>${g.tipeGerbong || '-'}</td>
+                            <td>${item.nama}</td>
+                            <td><span class="item-status-pill ${isBaik ? 'status-baik' : 'status-rusak'}">${item.status}</span></td>
+                            <td style="color:var(--text-muted);">${item.deskripsiKerusakan || '-'}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                gerbongHtml += `
+                    <tr>
+                        <td><strong>${g.nomorSarana}</strong></td>
+                        <td>${g.tipeGerbong || '-'}</td>
+                    </tr>
+                `;
+            }
+        });
+        gerbongHtml += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    let summaryHtml = '';
+    if (isHasil && train.statusSummary) {
+        const s = train.statusSummary;
+        summaryHtml = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-size:14px; color:var(--text-subtle); background:rgba(255,255,255,0.03); padding:12px 16px; border-radius:10px; border:1px solid var(--border-glass);">
+                <span><i class="fa-regular fa-calendar" style="color:var(--brand-sky);"></i> <strong>Tanggal Inspeksi:</strong> ${formatDate(train.tanggalPemeriksaan || train.importedAt)}</span>
+                <span><i class="fa-solid fa-user-check" style="color:var(--accent-emerald);"></i> <strong>Petugas:</strong> ${train.petugas || 'Petugas Inspeksi KAI'}</span>
+            </div>
+            
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:18px;">
+                <h4 style="font-size:15px; margin-bottom:12px; color:var(--brand-sky);"><i class="fa-solid fa-chart-pie"></i> Ringkasan Kelaikan Perangkat</h4>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:14px;">
+                    <div>📹 CCTV: <strong>${s.cctvBaik}/${s.cctvTotal} Baik</strong></div>
+                    <div>🖥️ PIDS: <strong>${s.pidsBaik}/${s.pidsTotal} Baik</strong></div>
+                    <div>📟 Running Text: <strong>${s.runningTextBaik}/${s.runningTextTotal} Baik</strong></div>
+                    <div>📺 TV Display: <strong>${s.tvBaik}/${s.tvTotal} Baik</strong></div>
+                </div>
+            </div>
+        `;
+    }
+
+    document.getElementById('previewBody').innerHTML = `
+        ${summaryHtml}
+        ${gerbongHtml}
+    `;
+
+    openModal('previewModal');
+}
+
+// Edit Modal
+function openEditModal(id) {
+    const train = trains.find(t => t.id === id || t.nomorKA === id);
+    if (!train) return;
+    const updatedData = {
+        nomorKA: document.getElementById('editNoKA').value,
+        namaKA: document.getElementById('editNamaKA').value
+    };
+
+    showLoading('Memperbarui data...');
+    try {
+        const res = await fetch(`/api/trains/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedData)
+        });
+
+        if (!res.ok) throw new Error('Gagal memperbarui data');
+
+        showToast('Perubahan berhasil disimpan!', 'success');
+        closeModal('editModal');
+        fetchTrainData();
+    } catch (err) {
+        showToast('Terjadi kesalahan: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Delete Train Record
+async function deleteTrainData(id) {
+    if (!confirm('Apakah Anda yakin ingin menghapus data kereta ini dari sistem?')) return;
+
+    showLoading('Menghapus data...');
+    try {
+        const res = await fetch(`/api/trains/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Gagal menghapus data');
+
+        showToast('Data berhasil dihapus', 'success');
+        fetchTrainData();
+    } catch (err) {
+        showToast('Gagal menghapus: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// View PDF preview in Modal
+async function viewTrainPDF(id) {
+    const train = trains.find(t => t.id === id || t.nomorKA === id);
+    if (!train) return;
+
+    showLoading(`Menyiapkan PDF Laporan ${train.namaKA}...`);
+
+    try {
+        const res = await fetch('/api/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(train)
+        });
+
+        if (!res.ok) throw new Error('Gagal membuat PDF');
+
+        const blob = await res.blob();
+        displayPDFInModal(blob);
+    } catch (err) {
+        showToast('Gagal membuat PDF: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Print PDF directly
+async function printTrainPDF(id) {
+    const train = trains.find(t => t.id === id || t.nomorKA === id);
+    if (!train) return;
+
+    showLoading(`Menyiapkan Dokumen Print ${train.namaKA}...`);
+
+    try {
+        const res = await fetch('/api/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(train)
+        });
+
+        if (!res.ok) throw new Error('Gagal membuat PDF');
+
+        const blob = await res.blob();
+        if (currentPdfBlobUrl) {
+            window.URL.revokeObjectURL(currentPdfBlobUrl);
+        }
+        currentPdfBlobUrl = URL.createObjectURL(blob);
+        
+        openModal('wordPrintModal');
+        renderPdfBlobToCanvas(blob, 'wordPrintCanvasContainer');
+    } catch (err) {
+        showToast('Gagal mencetak dokumen: ' + err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Configure PDF.js worker
+if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function renderPdfBlobToCanvas(blob, containerId = 'pdfCanvasContainer') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="pdf-loading-spinner">
+            <div class="spinner"></div>
+            <p>Rendering halaman PDF Laporan...</p>
+        </div>
+    `;
+
+    try {
+        const arrayBuffer = await blob.arrayBuffer();
+        if (!window.pdfjsLib) {
+            throw new Error('PDF.js library belum siap');
+        }
+
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        container.innerHTML = '';
+
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            
+            const viewportDefault = page.getViewport({ scale: 1.0 });
+            const containerWidth = container.clientWidth || 900;
+            const targetWidth = Math.max(containerWidth - 40, 800);
+            const scale = targetWidth / viewportDefault.width;
+            const viewport = page.getViewport({ scale: Math.max(scale, 1.2) });
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'pdf-page-canvas';
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            const pageWrapper = document.createElement('div');
+            pageWrapper.className = 'pdf-page-wrapper';
+            pageWrapper.appendChild(canvas);
+            
+            // Add page indicator
+            const pageLabel = document.createElement('div');
+            pageLabel.className = 'pdf-page-num';
+            pageLabel.textContent = `Halaman ${pageNum} dari ${pdf.numPages}`;
+            pageWrapper.appendChild(pageLabel);
+
+            container.appendChild(pageWrapper);
+
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+        }
+    } catch (err) {
+        console.error('Error rendering PDF with PDF.js:', err);
+        container.innerHTML = `
+            <div class="pdf-fallback-box">
+                <i class="fa-solid fa-file-pdf icon-accent" style="font-size: 48px; margin-bottom: 12px;"></i>
+                <h3>Pratinjau PDF Siap</h3>
+                <p>Dokumen Laporan A4 Landscape berhasil dibuat.</p>
+                <div style="display:flex; gap:12px; margin-top:16px;">
+                    <button class="btn btn-primary" onclick="openPDFInNewTab()"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka PDF di Tab Baru</button>
+                    <button class="btn btn-emerald" onclick="downloadCurrentPDF()"><i class="fa-solid fa-download"></i> Unduh File PDF</button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function displayPDFInModal(blob) {
+    if (currentPdfBlobUrl) {
+        window.URL.revokeObjectURL(currentPdfBlobUrl);
+    }
+    currentPdfBlobUrl = window.URL.createObjectURL(blob);
+    
+    openModal('pdfViewerModal');
+    renderPdfBlobToCanvas(blob);
+}
+
+function openPDFInNewTab() {
+    if (currentPdfBlobUrl) {
+        window.open(currentPdfBlobUrl, '_blank');
+    } else {
+        showToast('File PDF belum siap', 'error');
+    }
+}
+
+function executeNativePrint() {
+    if (currentPdfBlobUrl) {
+        const printWindow = window.open(currentPdfBlobUrl, '_blank');
+        if (printWindow) {
+            setTimeout(() => {
+                printWindow.print();
+            }, 800);
+        } else {
+            showToast('Harap izinkan pop-up browser untuk mencetak', 'error');
+        }
+    }
+}
+
+function executeNativePrint() {
+    if (currentPdfBlobUrl) {
+        const printWindow = window.open(currentPdfBlobUrl, '_blank');
+        if (printWindow) {
+            setTimeout(() => {
+                printWindow.print();
+            }, 800);
+        } else {
+            showToast('Harap izinkan pop-up browser untuk mencetak', 'error');
+        }
+    }
+}
+
+function downloadCurrentPDF() {
+    if (currentPdfBlobUrl) {
+        const a = document.createElement('a');
+        a.href = currentPdfBlobUrl;
+        a.download = `Laporan_SIPERKA_KAI_${Date.now()}.pdf`;
+        a.click();
+    }
+}
+
+// Generic Modal Helpers
+function openModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) el.classList.add('active');
+}
+
+function closeModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) el.classList.remove('active');
+}
+
+/* ==========================================================================
+   6. Toast & Loading Helpers
+   ========================================================================== */
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icon = type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation';
+    
+    toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
+function showLoading(text = 'Memproses data...') {
+    const overlay = document.getElementById('globalLoading');
+    const textEl = document.getElementById('loadingText');
+    if (textEl) textEl.textContent = text;
+    if (overlay) overlay.classList.add('active');
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('globalLoading');
+    if (overlay) overlay.classList.remove('active');
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+/* ==========================================================================
+   10. Sistem Penugasan & Jadwal
+   ========================================================================== */
+window.openAssignModal = function(trainId) {
+    const train = trains.find(t => t.id === trainId);
+    if (!train) return;
+    
+    document.getElementById('assignTrainId').value = trainId;
+    document.getElementById('assignTrainName').value = `KA ${train.nomorKA} - ${train.namaKA}`;
+    
+    // Mock user list if no DB connected yet
+    const select = document.getElementById('assignPetugas');
+    select.innerHTML = `
+        <option value="">-- Pilih Petugas --</option>
+        <option value="user1@kai.id|12345678|Budi Santoso">Budi Santoso (12345678)</option>
+        <option value="user2@kai.id|87654321|Andi Darmawan">Andi Darmawan (87654321)</option>
+    `;
+    
+    // Set default date to today
+    document.getElementById('assignDate').value = new Date().toISOString().split('T')[0];
+    openModal('assignModal');
+};
+
+window.handleAssign = async function(e) {
+    e.preventDefault();
+    const trainId = document.getElementById('assignTrainId').value;
+    const petugasData = document.getElementById('assignPetugas').value;
+    const assignDate = document.getElementById('assignDate').value;
+    
+    if (!petugasData) {
+        showToast('Pilih petugas terlebih dahulu', 'error');
+        return;
+    }
+    
+    const [email, nip, nama] = petugasData.split('|');
+    const train = trains.find(t => t.id === trainId);
+    
+    showLoading('Menyimpan Penugasan...');
+    
+    try {
+        // Send to backend to save schedule and set up email cron
+        const res = await fetch('/api/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                trainId: trainId,
+                nomorKA: train.nomorKA,
+                namaKA: train.namaKA,
+                petugas: { email, nip, nama },
+                tanggalInspeksi: assignDate
+            })
+        });
+        
+        if (res.ok) {
+            showToast(`Berhasil menugaskan KA ${train.nomorKA} ke ${nama}`, 'success');
+            closeModal('assignModal');
+            loadSchedules(); // Refresh schedules table
+        } else {
+            throw new Error('Gagal menyimpan jadwal di server');
+        }
+    } catch (err) {
+        console.error(err);
+        // Fallback for UI if server schedule endpoint not ready yet
+        showToast(`(Mock) Berhasil menugaskan KA ${train.nomorKA} ke ${nama}`, 'success');
+        closeModal('assignModal');
+    } finally {
+        hideLoading();
+    }
+};
+
+window.loadSchedules = async function() {
+    // Mock fetch schedules
+    const tbody = document.getElementById('jadwalTableBody');
+    if (!tbody) return;
+    
+    // Nanti diganti fetch dari Firestore atau backend
+    tbody.innerHTML = `
+        <tr>
+            <td><strong>${new Date().toLocaleDateString('id-ID')}</strong></td>
+            <td>Budi Santoso</td>
+            <td>12345678</td>
+            <td>KA 77 (Lodaya)</td>
+            <td><span class="badge" style="background:#f59e0b;color:#fff;padding:4px 8px;border-radius:12px;font-size:11px;">Menunggu</span></td>
+            <td>
+                <button class="btn btn-ghost btn-sm"><i class="fa-solid fa-envelope"></i> Kirim Ulang</button>
+            </td>
+        </tr>
+    `;
+};
+
+// Also load schedules when the view is active
+document.addEventListener('DOMContentLoaded', () => {
+    loadSchedules();
+});

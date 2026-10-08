@@ -1,0 +1,145 @@
+<!-- VIEW 1: DASHBOARD -->
+            <section id="dashboardView" class="view-page active">
+                <div class="jadwal-widget-card" style="flex-direction: row; align-items: center; justify-content: space-between; border-color: #0f3057; margin-bottom: 24px;">
+                    <div class="banner-content">
+                        <span style="color: #f59e0b; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <i class="fa-regular fa-clock"></i> REAL-TIME MONITORING
+                        </span>
+                        <h2 style="color: #0f3057; font-size: 1.5rem; font-weight: 800; margin-bottom: 8px;">Monitoring Kelayakan Perangkat Sarana Kereta Api</h2>
+                        <p style="color: #475569; font-size: 0.95rem; max-width: 600px;">Pemantauan Status Ketersediaan & Kelayakan CCTV, PIDS, Running Text, TV, dan Onboard Wi-FI pada Seluruh Rangkaian KA secara terpusat.</p>
+                    </div>
+                    <div style="background-color: #16a34a; border-radius: 50%; width: 120px; height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+                        <span id="systemHealthScore" style="font-size: 1.8rem; font-weight: 800;">99.3%</span>
+                        <span style="font-size: 0.75rem; font-weight: 600;">Kondisi Baik</span>
+                    </div>
+                </div>
+
+                <!-- 3 Metric Cards Grid -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 24px;">
+                    <!-- Card Abu-abu -->
+                    <div class="jadwal-widget-card" style="border-color: #64748b; flex-direction: row; align-items: center; gap: 16px; padding: 24px;">
+                        <div style="background-color: #64748b; color: white; width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;">
+                            <i class="fa-solid fa-train"></i>
+                        </div>
+                        <div>
+                            <div style="color: #64748b; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">Total Rangkaian KA</div>
+                            <div id="statJumlahKereta" style="color: #64748b; font-size: 2.5rem; font-weight: 900; line-height: 1;">3</div>
+                            <div style="background-color: #f1f5f9; color: #334155; border: 1px solid #94a3b8; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 8px;">Terdaftar di Siperka</div>
+                        </div>
+                    </div>
+                    <!-- Card Biru -->
+                    <div class="jadwal-widget-card" style="border-color: #0284c7; flex-direction: row; align-items: center; gap: 16px; padding: 24px;">
+                        <div style="background-color: #0284c7; color: white; width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                        <div>
+                            <div style="color: #0284c7; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">Sudah Dipersika</div>
+                            <div id="statSudahCek" style="color: #0284c7; font-size: 2.5rem; font-weight: 900; line-height: 1;">3</div>
+                            <div style="background-color: #e0f2fe; color: #0369a1; border: 1px solid #38bdf8; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 8px;">Status Selesai</div>
+                        </div>
+                    </div>
+                    <!-- Card Hijau -->
+                    <div class="jadwal-widget-card" style="border-color: #16a34a; flex-direction: row; align-items: center; gap: 16px; padding: 24px;">
+                        <div style="background-color: #16a34a; color: white; width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;">
+                            <i class="fa-solid fa-share-nodes"></i>
+                        </div>
+                        <div>
+                            <div style="color: #16a34a; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">Sarana Siap Operasi</div>
+                            <div id="statKondisiBagus" style="color: #16a34a; font-size: 2.5rem; font-weight: 900; line-height: 1;">3</div>
+                            <div style="background-color: #dcfce7; color: #15803d; border: 1px solid #4ade80; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 8px;">Layak Jalan</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Content Layout -->
+                <div class="dashboard-widgets-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <!-- Device Status Breakdown Progress Widget -->
+                    <div class="jadwal-widget-card" style="border-color: #0f3057; cursor: default;">
+                        <div class="jadwal-widget-header">
+                            <h3 style="color: #0f3057; font-size: 1.25rem;">Kondisi Kategori Perangkat</h3>
+                            <div class="jadwal-widget-badge" id="badge-kondisi-perangkat" style="background-color: #bae6fd; color: #0369a1; border-color: #38bdf8;">Loading...</div>
+                        </div>
+                        <div class="device-status-list" style="display: flex; flex-direction: column; gap: 16px; margin-top: 10px;">
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>CCTV System</span>
+                                    <strong id="dashCctvText" style="color: #16a34a;">100% Baik (54/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashCctvBar" style="background-color: #16a34a; height: 100%; border-radius: 10px; width: 100%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>PIDS Display</span>
+                                    <strong id="dashPidsText" style="color: #16a34a;">80% Baik (45/56)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashPidsBar" style="background-color: #16a34a; height: 100%; border-radius: 10px; width: 80%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>Running Text</span>
+                                    <strong id="dashRtText" style="color: #f59e0b;">64% Sedang (34/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashRtBar" style="background-color: #f59e0b; height: 100%; border-radius: 10px; width: 64%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>TV Information</span>
+                                    <strong id="dashTvText" style="color: #f59e0b;">55% Sedang (30/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashTvBar" style="background-color: #f59e0b; height: 100%; border-radius: 10px; width: 55%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>Onboard Wifi</span>
+                                    <strong id="dashWifiText" style="color: #dc2626;">21% Rusak (15/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashWifiBar" style="background-color: #dc2626; height: 100%; border-radius: 10px; width: 21%;"></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Jadwal Penugasan Widget -->
+                    <div class="jadwal-widget-card" onclick="const btn = document.querySelector('.nav-item[data-tab=\'jadwal\']'); if(btn) btn.click();">
+                        <div class="jadwal-widget-header">
+                            <h3>Jadwal Penugasan</h3>
+                            <div class="jadwal-widget-badge" id="badge-jadwal-penugasan">0% Selesai</div>
+                        </div>
+                        <table class="jadwal-widget-table">
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Petugas</th>
+                                    <th>Kereta</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>31/07/2026</td>
+                                    <td>Andika<br>Mahendra<br>Yudhistira</td>
+                                    <td>KA 245<br>(Progo)</td>
+                                    <td><span class="jadwal-badge-menunggu">Menunggu</span></td>
+                                </tr>
+                                <tr>
+                                    <td>01/08/2026</td>
+                                    <td>Gaten Isnan<br>Abdurrozaq</td>
+                                    <td>KA 230<br>(Malabar)</td>
+                                    <td><span class="jadwal-badge-menunggu">Menunggu</span></td>
+                                </tr>
+                                <tr>
+                                    <td>04/08/2026</td>
+                                    <td>Albertus<br>Radya<br>Winny Putra</td>
+                                    <td>KA 45<br>(Taksaka<br>YK)</td>
+                                    <td><span class="jadwal-badge-selesai">Selesai</span></td>
+                                </tr>
+                                <tr>
+                                    <td>03/08/2026</td>
+                                    <td>Andi Ghalib</td>
+                                    <td>KA 245<br>(Taksaka<br>YK)</td>
+                                    <td><span class="jadwal-badge-selesai">Selesai</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>

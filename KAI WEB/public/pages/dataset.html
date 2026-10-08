@@ -1,0 +1,40 @@
+<!-- VIEW 2: DATASET -->
+            <section id="datasetView" class="view-page">
+                <div class="page-title-box flex-between">
+                    <div>
+                        <h2>Dataset Data Kereta Api</h2>
+                        <p>Daftar lengkap inspeksi sarana dan perangkat kereta api yang tersimpan di database.</p>
+                    </div>
+
+                </div>
+
+                <div class="glass-card table-wrapper">
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="datasetSearch" placeholder="Cari nama atau nomor KA..." oninput="filterDataset()">
+                        </div>
+                        <div class="table-info" id="datasetCountInfo">
+                            Menampilkan 0 data
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('trains', 'nomorKA', 'filterDataset')">No KA <span class="sort-icon-trains" id="sort-icon-trains-nomorKA"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('trains', 'namaKA', 'filterDataset')">Nama Kereta Api <span class="sort-icon-trains" id="sort-icon-trains-namaKA"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('trains', 'tanggalPemeriksaan', 'filterDataset')">Tanggal Pemeriksaan <span class="sort-icon-trains" id="sort-icon-trains-tanggalPemeriksaan"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                    <th>Petugas Inspeksi</th>
+                                    <th>Aksi Pengelolaan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="datasetTableBody">
+                                <!-- Data rows will be generated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>

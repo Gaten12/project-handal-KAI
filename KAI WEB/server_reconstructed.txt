@@ -1,0 +1,194 @@
+Created At: 2026-09-02T23:29:05+07:00
+Completed At: 2026-09-02T23:29:05+07:00
+File Path: `file:///c:/Users/gaten/Downloads/PROJECT%20TERSEMBUNYI%20KAI/KAI%20WEB/server.js`
+Total Lines: 802
+Total Bytes: 36409
+Showing lines 660 to 680
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+660:             try { trainMap[t.id] = JSON.parse(t.data); } catch(e) {}
+661:         });
+662: 
+663:         const result = schedules.map(s => {
+664:             s.petugas = JSON.parse(s.petugas || '{}');
+665:             if (s.trainData) {
+666:                 try { s.trainData = JSON.parse(s.trainData); } catch(e) { s.trainData = null; }
+667:             }
+668:             if (!s.trainData) {
+669:                 s.trainData = trainMap[s.trainId] || null;
+670:             }
+671:             return s;
+672:         });
+673:         res.json(result);
+674:     } catch (error) {
+675:         console.error('Error fetching schedules:', error);
+676:         res.status(500).json({ message: 'Failed to fetch schedules' });
+677:     }
+678: });
+679: 
+680: app.put('/api/schedules/:id', (req, res) => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+---
+Created At: 2026-09-02T23:29:36+07:00
+Completed At: 2026-09-02T23:29:36+07:00
+File Path: `file:///c:/Users/gaten/Downloads/PROJECT%20TERSEMBUNYI%20KAI/KAI%20WEB/server.js`
+Total Lines: 802
+Total Bytes: 36409
+Showing lines 675 to 700
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+675:         console.error('Error fetching schedules:', error);
+676:         res.status(500).json({ message: 'Failed to fetch schedules' });
+677:     }
+678: });
+679: 
+680: app.put('/api/schedules/:id', (req, res) => {
+681:     try {
+682:         const { id } = req.params;
+683:         const upd = req.body;
+684:         
+685:         const fields = Object.keys(upd).map(k => `${k} = ?`).join(', ');
+686:         if (fields.length > 0) {
+687:             const values = Object.values(upd).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+688:             db.prepare(`UPDATE schedules SET ${fields} WHERE id = ?`).run(...values, id);
+689:         }
+690:         res.json({ message: 'Jadwal berhasil diperbarui' });
+691:     } catch (error) {
+692:         console.error('Error updating schedule:', error);
+693:         res.status(500).json({ message: 'Failed to update schedule' });
+694:     }
+695: });
+696: 
+697: app.delete('/api/schedules/:id', (req, res) => {
+698:     try {
+699:         db.prepare('DELETE FROM schedules WHERE id = ?').run(req.params.id);
+700:         res.json({ message: 'Jadwal berhasil dihapus' });
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+---
+Created At: 2026-09-02T23:52:39+07:00
+Completed At: 2026-09-02T23:52:39+07:00
+File Path: `file:///c:/Users/gaten/Downloads/PROJECT%20TERSEMBUNYI%20KAI/KAI%20WEB/server.js`
+Total Lines: 802
+Total Bytes: 36409
+Showing lines 203 to 260
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+203: // =============================================
+204: // GENERATE SIPARKA (.st file)
+205: // =============================================
+206: app.post('/api/generate-siparka', (req, res) => {
+207:     try {
+208:         const { pilihanNoKA, namaKA, gerbongList } = req.body;
+209:         if (!pilihanNoKA || !namaKA || !gerbongList) {
+210:             return res.status(400).json({ message: 'Data tidak lengkap.' });
+211:         }
+212: 
+213:         const defaultInspeksiItems = [
+214:             { nama: 'PIDS Kereta Belakang', status: 'AWAL' },
+215:             { nama: 'TV Belakang 2', status: 'AWAL' },
+216:             { nama: 'TV Belakang 1', status: 'AWAL' },
+217:             { nama: 'CCTV Belakang Berfungsi', status: 'AWAL' },
+218:             { nama: 'CCTV Belakang Terbackup', status: 'AWAL' },
+219:             { nama: 'Running Teks 2', status: 'AWAL' },
+220:             { nama: 'Router', status: 'AWAL' },
+221:             { nama: 'CCTV Depan Berfungsi', status: 'AWAL' },
+222:             { nama: 'CCTV Depan Terbackup', status: 'AWAL' },
+223:             { nama: 'TV Depan 2', status: 'AWAL' },
+224:             { nama: 'TV Depan 1', status: 'AWAL' },
+225:             { nama: 'PIDS Kereta Depan', status: 'AWAL' },
+226:             { nama: 'Running Teks 1', status: 'AWAL' }
+227:         ];
+228: 
+229:         const siparkaData = {
+230:             namaKA,
+231:             nomorKA: "",
+232:             pilihanNoKA,
+233:             gerbongList: gerbongList.map(g => ({
+234:                 nomorSarana: g.nomorSarana,
+235:                 inspeksiItems: [...defaultInspeksiItems],
+236:                 isInspected: false
+237:             }))
+238:         };
+239: 
+240:         res.setHeader('Content-Type', 'application/json');
+241:         res.setHeader('Content-Disposition', `attachment; filename=Siparka_${namaKA.replace(/\s+/g, '_')}.st`);
+242:         res.send(JSON.stringify(siparkaData, null, 2));
+243:     } catch (error) {
+244:         console.error('Error generating siparka:', error);
+245:         res.status(500).json({ message: 'Terjadi kesalahan saat generate list pemeriksaan.' });
+246:     }
+247: });
+248: 
+249: // =============================================
+250: // TRAINS (DATASET KA)
+251: // =============================================
+252: app.get('/api/trains', (req, res) => {
+253:     try {
+254:         const trains = db.prepare('SELECT * FROM trains ORDER BY tanggalPemeriksaan DESC').all();
+255:         const result = trains.map(t => {
+256:             let extra = {};
+257:             if (t.data) { try { extra = JSON.parse(t.data); } catch(e) {} }
+258:             // Pastikan properti asli database tidak tertimpa oleh extra data
+259:             return { ...extra, ...t };
+260:         });
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+---
+Created At: 2026-09-02T23:52:44+07:00
+Completed At: 2026-09-02T23:52:44+07:00
+File Path: `file:///c:/Users/gaten/Downloads/PROJECT%20TERSEMBUNYI%20KAI/KAI%20WEB/server.js`
+Total Lines: 802
+Total Bytes: 36409
+Showing lines 330 to 380
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+330: 
+331: // =============================================
+332: // PDF GENERATOR
+333: // =============================================
+334: app.post('/api/convert', upload.single('siparkaFile'), (req, res) => {
+335:     try {
+336:         let data;
+337:         if (req.file) {
+338:             const jsonString = req.file.buffer.toString('utf8');
+339:             data = JSON.parse(jsonString);
+340:         } else if (req.body) {
+341:             if (req.body.data && typeof req.body.data === 'string') {
+342:                 // If it's a string, it means it's the raw SQLite column data that was merged into req.body.
+343:                 // But req.body already has gerbongList because of our GET /api/trains merging logic, so we just use req.body!
+344:                 data = req.body;
+345:             } else if (req.body.data && typeof req.body.data === 'object' && !req.body.namaKA) {
+346:                 // Nested data object
+347:                 data = req.body.data;
+348:             } else {
+349:                 data = req.body;
+350:             }
+351:         } else {
+352:             return res.status(400).send('File or JSON data missing.');
+353:         }
+354: 
+355:         const doc = new PDFDocument({ margin: 20, size: [841.89, 595.28] });
+356:         const safeFilename = (data.namaKA || 'laporan').replace(/\s+/g, '_');
+357:         res.setHeader('Content-Type', 'application/pdf');
+358:         res.setHeader('Content-Disposition', `inline; filename=laporan_${safeFilename}.pdf`);
+359:         doc.pipe(res);
+360: 
+361:         const logoPath = path.join(__dirname, 'public', 'images', 'Logo_PT_Kereta_Api_Indonesia_(Persero)_2020.png');
+362:         const pageWidth = 841.89;
+363:         const margin = 20;
+364:         const tableWidth = pageWidth - margin * 2;
+365: 
+366:         doc.font('Helvetica-Bold');
+367:         const headerTop = 20;
+368:         doc.rect(margin, headerTop, tableWidth, 50).stroke();
+369:         doc.moveTo(margin + 120, headerTop).lineTo(margin + 120, headerTop + 50).stroke();
+370:         if (fs.existsSync(logoPath)) {
+371:             doc.image(logoPath, margin + 20, headerTop + 5, { width: 80 });
+372:         }
+373:         doc.moveTo(margin + tableWidth - 100, headerTop).lineTo(margin + tableWidth - 100, headerTop + 50).stroke();
+374:         doc.fontSize(10).text('PT. KERETA API INDONESIA (PERSERO)', margin + 120, headerTop + 10, { width: tableWidth - 220, align: 'center' });
+375:         doc.fontSize(9).text('Sistem Informasi', margin + 120, headerTop + 25, { width: tableWidth - 220, align: 'center' });
+376: 
+377:         doc.rect(margin, headerTop + 50, tableWidth, 20).stroke();
+378:         doc.rect(margin + 30, headerTop + 53, 60, 14).strokeColor('yellow').lineWidth(2).stroke();
+379:         doc.fillColor('yellow').text('TERBATAS', margin + 30, headerTop + 56, { width: 60, align: 'center' });
+380:         doc.strokeColor('black').lineWidth(1).fillColor('black');
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

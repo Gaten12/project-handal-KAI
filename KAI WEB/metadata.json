@@ -1,0 +1,6 @@
+{
+  "name": "SIPERKA - Sistem Inspeksi Perangkat KA",
+  "description": "Portal Resmi Sistem Inspeksi Perangkat Kereta Api KAI dengan Konversi Laporan .siparka ke PDF",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

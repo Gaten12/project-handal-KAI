@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIPERKA - Sistem Inspeksi Perangkat Kereta Api</title>
+    <link rel="stylesheet" href="style.css?v=1790163552755">
+    <!-- Premium Google Fonts: Plus Jakarta Sans & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons for clean UI -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PDF.js for seamless in-app canvas rendering inside sandboxed preview -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <!-- Animated background glowing ambient lights -->
+    <div class="ambient-light ambient-1"></div>
+    <div class="ambient-light ambient-2"></div>
+    <div class="ambient-light ambient-3"></div>
+
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo-wrapper" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="images/Logo_Aplikasi_Biru.png" alt="Logo KAI" class="brand-logo" style="height: 60px; object-fit: contain;">
+                    <img src="images/Logo_Tulisan_Berwarna.png" alt="Text Logo KAI" style="height: 30px; object-fit: contain;">
+                </div>
+            </div>
+
+            <div class="nav-section-label">Menu Utama</div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-tab="dashboard">
+                    <div class="nav-icon-box"><i class="fa-solid fa-chart-pie"></i></div>
+                    <span>Dashboard Utama</span>
+                </button>
+                <button class="nav-item" data-tab="jadwal">
+                    <div class="nav-icon-box"><i class="fa-solid fa-calendar-check"></i></div>
+                    <span>Jadwal & Penugasan</span>
+                </button>
+                <button class="nav-item admin-only" data-tab="hasil">
+                    <div class="nav-icon-box"><i class="fa-solid fa-clipboard-check"></i></div>
+                    <span>Hasil Pemeriksaan</span>
+                </button>
+                <button class="nav-item" data-tab="profil">
+                    <div class="nav-icon-box"><i class="fa-solid fa-user-circle"></i></div>
+                    <span>Profil Saya</span>
+                </button>
+                <div class="nav-group admin-only">
+                    <button class="nav-item has-submenu" data-tab="setting">
+                        <div class="nav-icon-box"><i class="fa-solid fa-gears"></i></div>
+                        <span>Setting KA</span>
+                        <i class="fa-solid fa-chevron-down submenu-indicator" style="margin-left: auto;"></i>
+                    </button>
+                    <div class="sub-nav">
+                        <button class="nav-item sub-item" data-tab="dataset">
+                            <div class="nav-icon-box"><i class="fa-solid fa-database"></i></div>
+                            <span>Dataset KA</span>
+                        </button>
+                        <button class="nav-item sub-item" data-tab="tamanKereta">
+                            <div class="nav-icon-box"><i class="fa-solid fa-train-subway"></i></div>
+                            <span>Import Taman Kereta</span>
+                        </button>
+                    </div>
+                </div>
+                <button class="nav-item admin-only" data-tab="users">
+                    <div class="nav-icon-box"><i class="fa-solid fa-users-gear"></i></div>
+                    <span>Manajemen Akun</span>
+                </button>
+                <button class="nav-item admin-only" data-tab="database">
+                    <div class="nav-icon-box"><i class="fa-solid fa-database"></i></div>
+                    <span>Manajemen Database</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-extra-info">
+                <div class="kai-badge">
+                    <div class="icon-kai"><i class="fa-solid fa-shield-halved"></i></div>
+                    <div>
+                        <strong>Standar Handal KAI</strong>
+                        <span>Inspeksi Sarana Terpadu</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar"><i class="fa-solid fa-user-shield"></i></div>
+                    <div class="user-details" style="flex: 1;">
+                        <span class="user-name" id="displayUserRole">Role Login (Misal: Admin)</span>
+                        <span class="user-status"><span class="status-dot"></span> Sistem aktif</span>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="padding: 8px; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px;" title="Logout">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content" style="background: white;">
+            <!-- Top Bar Header -->
+            <header class="top-header" style="background: url('images/Desain_Header.png') no-repeat center center; background-size: 100% 100%; padding: 24px 10px; min-height: 150px; display: flex; align-items: center; position: relative; border-bottom: none;">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; color: #0f3057; cursor: pointer; padding: 8px 12px; border-radius: 8px; margin-right: 16px; backdrop-filter: blur(4px);">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="header-welcome" style="display: flex; flex-direction: column; position: relative; z-index: 1; max-width: 75%;">
+                    <div style="color: #0f3057; font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; font-family: 'Outfit', sans-serif;">
+                        Portal Resmi Inpeksi Perangkat
+                    </div>
+                    <h1 style="color: #f97316; font-size: 3.5rem; font-weight: 900; margin: 0; line-height: 1; letter-spacing: -1px;">
+                        Sistem Inpeksi Kereta Api
+                    </h1>
+                    <div class="header-date" id="liveClock" style="color: #0f3057; font-size: 1rem; font-weight: 700; margin-top: 8px; font-family: 'Outfit', sans-serif;">
+                        Memuat Waktu...
+                    </div>
+                </div>
+            </header>
+
+            <!-- VIEW 1: DASHBOARD -->
+            <section id="dashboardView" class="view-page active">
+                <div class="jadwal-widget-card" style="flex-direction: row; align-items: center; justify-content: space-between; border-color: #0f3057; margin-bottom: 24px;">
+                    <div class="banner-content">
+                        <span style="color: #f59e0b; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <i class="fa-regular fa-clock"></i> REAL-TIME MONITORING
+                        </span>
+                        <h2 style="color: #0f3057; font-size: 1.5rem; font-weight: 800; margin-bottom: 8px;">Monitoring Kelayakan Perangkat Sarana Kereta Api</h2>
+                        <p style="color: #475569; font-size: 0.95rem; max-width: 600px;">Pemantauan Status Ketersediaan & Kelayakan CCTV, PIDS, Running Text, TV, dan Onboard Wi-FI pada Seluruh Rangkaian KA secara terpusat.</p>
+                    </div>
+                    <div style="background-color: #16a34a; border-radius: 50%; width: 120px; height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+                        <span id="systemHealthScore" style="font-size: 1.8rem; font-weight: 800;">99.3%</span>
+                        <span style="font-size: 0.75rem; font-weight: 600;">Kondisi Baik</span>
+                    </div>
+                </div>
+
+                <!-- 3 Metric Cards Grid -->
+                <div class="dashboard-grid">
+                    <!-- Card Abu-abu -->
+                    <div class="jadwal-widget-card" style="border-color: #64748b; flex-direction: row; align-items: center; gap: 16px; padding: 24px;">
+                        <div style="background-color: #64748b; color: white; width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;">
+                            <i class="fa-solid fa-train"></i>
+                        </div>
+                        <div>
+                            <div style="color: #64748b; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">Total Rangkaian KA</div>
+                            <div id="statJumlahKereta" style="color: #64748b; font-size: 2.5rem; font-weight: 900; line-height: 1;">3</div>
+                            <div style="background-color: #f1f5f9; color: #334155; border: 1px solid #94a3b8; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 8px;">Terdaftar di Siperka</div>
+                        </div>
+                    </div>
+                    <!-- Card Biru -->
+                    <div class="jadwal-widget-card" style="border-color: #0284c7; flex-direction: row; align-items: center; gap: 16px; padding: 24px;">
+                        <div style="background-color: #0284c7; color: white; width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                        <div>
+                            <div style="color: #0284c7; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">Sudah Dipersika</div>
+                            <div id="statSudahCek" style="color: #0284c7; font-size: 2.5rem; font-weight: 900; line-height: 1;">3</div>
+                            <div style="background-color: #e0f2fe; color: #0369a1; border: 1px solid #38bdf8; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 8px;">Status Selesai</div>
+                        </div>
+                    </div>
+                    <!-- Card Hijau -->
+                    <div class="jadwal-widget-card" style="border-color: #16a34a; flex-direction: row; align-items: center; gap: 16px; padding: 24px;">
+                        <div style="background-color: #16a34a; color: white; width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;">
+                            <i class="fa-solid fa-share-nodes"></i>
+                        </div>
+                        <div>
+                            <div style="color: #16a34a; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">Sarana Siap Operasi</div>
+                            <div id="statKondisiBagus" style="color: #16a34a; font-size: 2.5rem; font-weight: 900; line-height: 1;">3</div>
+                            <div style="background-color: #dcfce7; color: #15803d; border: 1px solid #4ade80; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 8px;">Layak Jalan</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Content Layout -->
+                <div class="dashboard-widgets-grid">
+                    <!-- Device Status Breakdown Progress Widget -->
+                    <div class="jadwal-widget-card" style="border-color: #0f3057; cursor: default;">
+                        <div class="jadwal-widget-header">
+                            <h3 style="color: #0f3057; font-size: 1.25rem;">Kondisi Kategori Perangkat</h3>
+                            <div class="jadwal-widget-badge" id="badge-kondisi-perangkat" style="background-color: #bae6fd; color: #0369a1; border-color: #38bdf8;">Loading...</div>
+                        </div>
+                        <div class="device-status-list" style="display: flex; flex-direction: column; gap: 16px; margin-top: 10px;">
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>CCTV System</span>
+                                    <strong id="dashCctvText" style="color: #16a34a;">100% Baik (54/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashCctvBar" style="background-color: #16a34a; height: 100%; border-radius: 10px; width: 100%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>PIDS Display</span>
+                                    <strong id="dashPidsText" style="color: #16a34a;">80% Baik (45/56)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashPidsBar" style="background-color: #16a34a; height: 100%; border-radius: 10px; width: 80%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>Running Text</span>
+                                    <strong id="dashRtText" style="color: #f59e0b;">64% Sedang (34/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashRtBar" style="background-color: #f59e0b; height: 100%; border-radius: 10px; width: 64%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>TV Information</span>
+                                    <strong id="dashTvText" style="color: #f59e0b;">55% Sedang (30/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashTvBar" style="background-color: #f59e0b; height: 100%; border-radius: 10px; width: 55%;"></div></div>
+                            </div>
+                            <div class="device-item">
+                                <div class="device-meta" style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; color: #0f3057;">
+                                    <span>Onboard Wifi</span>
+                                    <strong id="dashWifiText" style="color: #dc2626;">21% Rusak (15/54)</strong>
+                                </div>
+                                <div class="progress-bar-bg" style="background-color: #e2e8f0; border-radius: 10px; height: 16px; width: 100%;"><div class="progress-bar-fill" id="dashWifiBar" style="background-color: #dc2626; height: 100%; border-radius: 10px; width: 21%;"></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Jadwal Penugasan Widget -->
+                    <div class="jadwal-widget-card" onclick="const btn = document.querySelector('.nav-item[data-tab=\'jadwal\']'); if(btn) btn.click();">
+                        <div class="jadwal-widget-header">
+                            <h3>Jadwal Penugasan</h3>
+                            <div class="jadwal-widget-badge" id="badge-jadwal-penugasan">0% Selesai</div>
+                        </div>
+                        <div class="table-responsive" style="width: 100%; overflow-x: auto;">
+                            <table class="jadwal-widget-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tanggal</th>
+                                        <th>Petugas</th>
+                                        <th>Kereta</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboardJadwalBody">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; padding: 20px;">Memuat data penugasan...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 2: DATASET -->
+            <section id="datasetView" class="view-page">
+                <div class="page-title-box flex-between">
+                    <div>
+                        <h2>Dataset Data Kereta Api</h2>
+                        <p>Daftar lengkap inspeksi sarana dan perangkat kereta api yang tersimpan di database.</p>
+                    </div>
+
+                </div>
+
+                <div class="glass-card table-wrapper">
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="datasetSearch" placeholder="Cari nama atau nomor KA..." oninput="filterDataset()">
+                        </div>
+                        <div class="table-info" id="datasetCountInfo">
+                            Menampilkan 0 data
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>No KA</th>
+                                    <th>Nama Kereta Api</th>
+                                    <th>Jumlah Gerbong</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="datasetTableBody">
+                                <!-- Data rows will be generated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 3: HASIL PEMERIKSAAN -->
+            <section id="hasilView" class="view-page">
+                <div class="page-title-box flex-between">
+                    <div>
+                        <h2>Hasil Pemeriksaan Sarana</h2>
+                        <p>Kartu rekapitulasi kelaikan perangkat untuk setiap rangkaian kereta api.</p>
+                    </div>
+
+                    <div class="filter-pills">
+                        <button class="filter-pill" id="btnBulkDeleteHasil" onclick="bulkDeleteHasil()" style="display:none; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);">
+                            <i class="fa-solid fa-trash"></i> Hapus Terpilih (<span id="bulkDeleteCount">0</span>)
+                        </button>
+                        <button class="filter-pill active" onclick="filterHasilCards('all', this)">Semua</button>
+                        <button class="filter-pill" onclick="filterHasilCards('perfect', this)">100% Baik</button>
+                        <button class="filter-pill" onclick="filterHasilCards('issue', this)">Ada Catatan</button>
+                    </div>
+                </div>
+
+                <div class="hasil-cards-grid" id="hasilCardsGrid">
+                    <!-- Cards will be dynamically injected -->
+                </div>
+            </section>
+
+            <!-- VIEW 4: IMPORT TAMAN KERETA -->
+            <section id="tamanKeretaView" class="view-page">
+                <!-- Step Indicator -->
+                <div class="tk-steps-bar">
+                    <div class="tk-step active" id="tkStep1Indicator">
+                        <div class="tk-step-num">1</div>
+                        <span>Upload Excel</span>
+                    </div>
+                    <div class="tk-step-line"></div>
+                    <div class="tk-step" id="tkStep2Indicator">
+                        <div class="tk-step-num">2</div>
+                        <span>Pilih Rangkaian</span>
+                    </div>
+                    <div class="tk-step-line"></div>
+                    <div class="tk-step" id="tkStep3Indicator">
+                        <div class="tk-step-num">3</div>
+                        <span>Tersimpan</span>
+                    </div>
+                </div>
+
+                <!-- Upload Area -->
+                <div class="tk-upload-area" id="tkUploadArea">
+                    <div class="tk-upload-card" id="tamanKeretaDropZone">
+                        <div class="tk-upload-icon">
+                            <i class="fa-solid fa-file-arrow-up"></i>
+                        </div>
+                        <div class="tk-upload-text">
+                            <h3>Upload Laporan Harian</h3>
+                            <p>Drag file .xlsx ke sini, atau klik untuk browse</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="document.getElementById('tkFileInput').click()">
+                            <i class="fa-solid fa-folder-open"></i> Pilih File
+                        </button>
+                        <input type="file" id="tkFileInput" accept=".xlsx,.xls" hidden onchange="if(this.files.length > 0) { handleTamanKeretaFileSelect(this.files[0]); this.value=''; }">
+                        <div class="tk-upload-hint">
+                            <i class="fa-solid fa-circle-info"></i> Format: Laporan Harian Stam Formasi (.xlsx)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div id="tkResultContainer" style="display: none;">
+                    <div class="tk-result-header">
+                        <div>
+                            <h3><i class="fa-solid fa-train-subway"></i> Rangkaian Terdeteksi</h3>
+                            <p id="tkTanggalLabel">Tanggal: -</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary btn-sm" onclick="saveSelectedTrains()" id="btnSaveSelectedTk" style="margin-right: 10px;">
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan Terpilih
+                            </button>
+                            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('tkResultContainer').style.display='none'; document.getElementById('tkUploadArea').style.display='block'; document.getElementById('tkStep1Indicator').classList.add('active'); document.getElementById('tkStep2Indicator').classList.remove('active');">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> Upload Ulang
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="tk-cards-grid" id="tkCardsGrid">
+                        <!-- Cards injected by JS -->
+                    </div>
+                </div>
+            </section>
+            
+            <!-- VIEW 5: JADWAL & PENUGASAN -->
+            <section id="jadwalView" class="view-page">
+                <div class="view-header">
+                    <div>
+                        <h2><i class="fa-solid fa-calendar-check icon-accent"></i> Jadwal & Penugasan Petugas</h2>
+                        <p>Kelola jadwal inspeksi dan tugaskan kereta ke petugas lapangan.</p>
+                    </div>
+                    <div class="header-actions" style="margin-top: 20px; margin-bottom: 10px;">
+                        <button class="btn btn-primary admin-only" onclick="openNewScheduleModal()" style="display: none;">
+                            <i class="fa-solid fa-plus"></i> Tambah Jadwal Baru
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="glass-card table-wrapper">
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                            <tr>
+                                <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('schedulesData', 'tanggalInspeksi', 'renderSchedules')">Tanggal <span class="sort-icon-schedulesData" id="sort-icon-schedulesData-tanggalInspeksi"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('schedulesData', 'petugas.nama', 'renderSchedules')">Petugas <span class="sort-icon-schedulesData" id="sort-icon-schedulesData-petugas-nama"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('schedulesData', 'petugas.nip', 'renderSchedules')">NIP <span class="sort-icon-schedulesData" id="sort-icon-schedulesData-petugas-nip"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('schedulesData', 'namaKA', 'renderSchedules')">Kereta <span class="sort-icon-schedulesData" id="sort-icon-schedulesData-namaKA"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('schedulesData', 'status', 'renderSchedules')">Status <span class="sort-icon-schedulesData" id="sort-icon-schedulesData-status"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                <th class="admin-only">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jadwalTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 20px;">Memuat data penugasan...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                </div>
+            </section>
+
+            <!-- ================= VIEW: PROFIL SAYA ================= -->
+            <section id="profilView" class="view-page">
+                <div class="view-header">
+                    <h2 class="view-title"><i class="fa-solid fa-user-circle icon-accent"></i> Profil Saya</h2>
+                    <p>Kelola profil dan tanda tangan digital Anda untuk dicetak pada laporan PDF.</p>
+                </div>
+                
+                <div class="profil-container">
+                    <!-- User Info Card -->
+                    <div class="glass-card" style="padding: 24px; text-align: center;">
+                        <div style="width: 80px; height: 80px; background: var(--brand-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white; margin: 0 auto 16px;">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <h3 id="profilNama" style="margin-bottom: 4px;">Loading...</h3>
+                        <p id="profilNip" style="color: var(--text-muted); margin-bottom: 4px;">NIP: -</p>
+                        <p id="profilEmail" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">email@kai.id</p>
+                        <span id="profilRoleBadge" class="badge" style="background: var(--brand-sky); color: white;">Petugas</span>
+                    </div>
+
+                    <!-- Signature Card -->
+                    <div class="glass-card" style="padding: 24px;">
+                        <h3 style="margin-bottom: 16px; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px;">Tanda Tangan Digital</h3>
+                        
+                        <!-- Existing Signature Display -->
+                        <div id="existingSignatureContainer" style="display: none; margin-bottom: 24px;">
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Tanda tangan Anda saat ini:</p>
+                            <div style="background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; width: fit-content;">
+                                <img id="existingSignatureImg" src="" alt="Signature" style="max-height: 100px; max-width: 300px; display: block;">
+                            </div>
+                            <button class="btn btn-outline" style="margin-top: 12px; border-color: var(--danger-red); color: var(--danger-red);" onclick="deleteSignature()">
+                                <i class="fa-solid fa-trash"></i> Hapus Tanda Tangan
+                            </button>
+                        </div>
+
+                        <!-- Signature Pad -->
+                        <div id="signaturePadContainer">
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Gambar tanda tangan Anda di dalam kotak di bawah ini:</p>
+                            <div style="background: white; border: 2px dashed #94a3b8; border-radius: 8px; cursor: crosshair; display: inline-block; touch-action: none;">
+                                <canvas id="signatureCanvas" width="400" height="150" style="display: block;"></canvas>
+                            </div>
+                            <div style="margin-top: 16px; display: flex; gap: 12px;">
+                                <button class="btn btn-primary" onclick="saveSignature()">
+                                    <i class="fa-solid fa-save"></i> Simpan Tanda Tangan
+                                </button>
+                                <button class="btn btn-secondary" onclick="clearSignature()">
+                                    <i class="fa-solid fa-eraser"></i> Bersihkan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= VIEW 6: USERS (Admin) ================= -->
+            <section id="usersView" class="view-page admin-only">
+                <div class="view-header">
+                    <h2 class="view-title" style="margin-bottom: 15px;">Manajemen Akun</h2>
+                    <div class="header-actions" style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="openModal('userModal')">
+                            <i class="fa-solid fa-user-plus"></i> Tambah Akun
+                        </button>
+                        <button class="btn btn-secondary" onclick="fetchUsers()">
+                            <i class="fa-solid fa-rotate-right"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card p-0 table-wrapper">
+                    <div class="table-toolbar flex-between">
+                        <h4 style="margin: 0;">Daftar Pegawai</h4>
+                        <div class="search-box">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="searchUserInput" placeholder="Cari NIP atau Nama..." onkeyup="filterUsers()">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('usersList', 'nip', 'renderUsers')">NIP <span class="sort-icon-usersList" id="sort-icon-usersList-nip"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('usersList', 'nama', 'renderUsers')">Nama Pegawai <span class="sort-icon-usersList" id="sort-icon-usersList-nama"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('usersList', 'email', 'renderUsers')">Email <span class="sort-icon-usersList" id="sort-icon-usersList-email"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="sortLocalData('usersList', 'role', 'renderUsers')">Role <span class="sort-icon-usersList" id="sort-icon-usersList-role"><i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 0.8em; margin-left: 5px;"></i></span></th>
+                                    <th class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- Data akun dirender disini -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            <!-- ================= VIEW: DATABASE MANAGEMENT (Admin Only) ================= -->
+            <section id="databaseView" class="view-page admin-only">
+                <div class="view-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                    <div>
+                        <h2><i class="fa-solid fa-server icon-accent"></i> Manajemen Database Server</h2>
+                        <p>Kelola tabel dan struktur data SQLite Anda layaknya profesional.</p>
+                    </div>
+                    <div class="db-stats-header glass-card" style="display: flex; gap: 20px; padding: 15px 25px; border-radius: 12px; align-items: center;">
+                        <div style="text-align: center; border-right: 1px solid var(--border-glass); padding-right: 20px;">
+                            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">TOTAL TABEL</div>
+                            <div id="statDbTables" style="font-size: 1.5rem; font-weight: 800; color: var(--brand-sky);">0</div>
+                        </div>
+                        <div style="text-align: center; border-right: 1px solid var(--border-glass); padding-right: 20px;">
+                            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">TOTAL BARIS</div>
+                            <div id="statDbRows" style="font-size: 1.5rem; font-weight: 800; color: var(--brand-sky);">0</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">UKURAN DB</div>
+                            <div id="statDbSize" style="font-size: 1.5rem; font-weight: 800; color: var(--brand-sky);">0 KB</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="db-manager-layout">
+                    
+                    <!-- Sidebar List Tabel -->
+                    <div class="glass-card" style="padding: 0; display: flex; flex-direction: column;">
+                        <div style="padding: 20px; border-bottom: 1px solid var(--border-glass); display: flex; justify-content: space-between; align-items: center;">
+                            <h4 style="margin: 0; color: var(--text-main);"><i class="fa-solid fa-list"></i> Daftar Tabel</h4>
+                            <button class="btn btn-sm btn-outline" onclick="loadDatabaseTables()" title="Refresh Tabel">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+                        <div id="dbSidebarList" class="db-table-list" style="overflow-y: auto; max-height: calc(100vh - 250px); padding: 10px;">
+                            <!-- List tabel akan dimuat lewat JS -->
+                            <div style="padding: 20px; text-align: center; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Memuat...</div>
+                        </div>
+                    </div>
+
+                    <!-- Area Data Tabel -->
+                    <div class="glass-card table-wrapper" style="display: flex; flex-direction: column;">
+                        <div class="table-toolbar flex-between" style="border-bottom: 1px solid var(--border-glass); padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 15px;">
+                            <h4 id="dbTableTitle" style="margin: 0; font-size: 1.2rem; color: var(--brand-blue);"><i class="fa-solid fa-table"></i> Pilih tabel di sebelah kiri</h4>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><div class="search-box"><i class="fa-solid fa-search"></i><input type="text" id="dbSearchInput" placeholder="Cari data di tabel..." onkeyup="debounceFetchTableData()"></div><button class="btn btn-primary" id="btnDbAdd" onclick="openDbInsertModal()" style="display: none; white-space: nowrap; height: 40px; border-radius: 8px; padding: 0 15px;"><i class="fa-solid fa-plus"></i> Tambah Data Baru</button></div>
+                        </div>
+                        
+                        <div class="table-responsive" style="overflow-x: auto; max-height: calc(100vh - 350px); border-radius: 8px; border: 1px solid var(--border-glass);">
+                            <table class="custom-table" id="dbTable">
+                                <thead id="dbTableHead">
+                                    <tr>
+                                        <th>Silakan pilih tabel dari daftar di sebelah kiri</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dbTableBody">
+                                    <tr>
+                                        <td style="text-align: center; padding: 60px; color: var(--text-muted);">
+                                            <i class="fa-solid fa-hand-point-left" style="font-size: 3rem; color: #cbd5e1; margin-bottom: 15px; display: block;"></i>
+                                            Area manajemen data akan muncul di sini.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-glass); flex-wrap: wrap; gap: 15px;">
+                            <span id="dbPaginationInfo" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Belum ada tabel dipilih</span>
+                            <div class="pagination-controls" style="display: flex; gap: 10px;">
+                                <button class="btn btn-outline" id="dbPrevBtn" onclick="changeDbPage(-1)" disabled><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                                <button class="btn btn-outline" id="dbNextBtn" onclick="changeDbPage(1)" disabled>Next <i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="activeDbTable" value="">
+
+                </div>
+            </section>
+        </main>
+    </div>
+
+
+    <!-- MODAL: USER MANAGEMENT -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal-container glass-modal">
+            <div class="modal-header">
+                <h3 id="userModalTitle"><i class="fa-solid fa-user-plus icon-accent"></i> Tambah Akun Baru</h3>
+                <button class="modal-close" onclick="closeModal('userModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm" onsubmit="handleUserSubmit(event)">
+                    <input type="hidden" id="userUid">
+                    <div class="form-group">
+                        <label>NIP</label>
+                        <input type="text" id="userNip" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Nama Lengkap</label>
+                        <input type="text" id="userNama" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="userEmail" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password (Kosongkan jika tidak ingin diubah saat edit)</label>
+                        <input type="password" id="userPassword" class="form-control">
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="button" class="btn-secondary" style="flex:1" onclick="closeModal('userModal')">Batal</button>
+                        <button type="submit" class="btn-primary" style="flex:1">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 1: IMPORT DATA -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal-container glass-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-circle-plus icon-accent"></i> Import Data Kereta / Inspeksi Baru</h3>
+                <button class="modal-close" onclick="closeModal('importModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" onsubmit="handleImportSubmit(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="importNoKA">Nomor KA</label>
+                            <input type="text" id="importNoKA" class="form-control" placeholder="Contoh: 77" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="importNamaKA">Nama KA</label>
+                            <input type="text" id="importNamaKA" class="form-control" placeholder="Contoh: KA Lodaya" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="importTanggal">Tanggal Pemeriksaan</label>
+                        <input type="date" id="importTanggal" class="form-control" required>
+                    </div>
+
+                    <div class="form-group" style="display:none;">
+                        <div class="drop-zone modal-drop-zone" id="modalDropZone">
+                            <input type="file" id="modalFileInput" accept=".json" hidden>
+                        </div>
+                        <div id="modalFileSelectedInfo" class="file-badge-info" style="display:none;"></div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('importModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> SIMPAN DATA</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: PREVIEW SUMMARY WITH GERBONG DETAILS -->
+    <div class="modal-overlay" id="previewModal">
+        <div class="modal-container glass-modal modal-wide">
+            <div class="modal-header">
+                <h3 id="previewTitle"><i class="fa-solid fa-eye icon-accent"></i> Preview Hasil Pemeriksaan</h3>
+                <button class="modal-close" onclick="closeModal('previewModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="previewBody">
+                <!-- Dynamic content populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('previewModal')">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: EDIT DATASET MENTAH -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-container glass-modal modal-wide">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen-to-square icon-accent"></i> Edit Data Stamformasi</h3>
+                <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm" onsubmit="handleEditSubmit(event)">
+                    <input type="hidden" id="editTrainId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nomor KA</label>
+                            <input type="text" id="editNoKA" class="form-control" required placeholder="Contoh: 123">
+                        </div>
+                        <div class="form-group">
+                            <label>Nama KA</label>
+                            <input type="text" id="editNamaKA" class="form-control" required placeholder="Contoh: Argo Bromo Anggrek">
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h4 style="font-size: 14px; color: var(--brand-sky); margin: 0;"><i class="fa-solid fa-train-subway"></i> Rangkaian Gerbong</h4>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="addGerbongRow()">
+                                <i class="fa-solid fa-plus"></i> Tambah Gerbong
+                            </button>
+                        </div>
+                        <div id="editGerbongList" style="max-height: 280px; overflow-y: auto; border: 1px solid var(--border-glass); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Gerbong rows injected by JS -->
+                        </div>
+                    </div>
+
+                    <div class="modal-footer" style="margin-top: 20px;">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('editModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: FULL PDF VIEWER -->
+    <div class="modal-overlay" id="pdfViewerModal">
+        <div class="modal-container glass-modal pdf-modal-wide">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-pdf icon-accent"></i> Pratinjau Dokumen Laporan A4 Landscape</h3>
+                <div class="header-btns">
+                    <button class="btn btn-secondary btn-sm" onclick="openPDFInNewTab()" title="Buka PDF di tab browser baru">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka di Tab Baru
+                    </button>
+                    <button class="btn btn-sm" onclick="executeNativePrint()" title="Cetak langsung ke Printer" style="background: var(--brand-blue); color: white; border: none;">
+                        <i class="fa-solid fa-print"></i> Print Langsung
+                    </button>
+                    <button class="btn btn-emerald btn-sm" onclick="downloadCurrentPDF()">
+                        <i class="fa-solid fa-download"></i> Unduh File PDF
+                    </button>
+                    <button class="modal-close" onclick="closeModal('pdfViewerModal')">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body pdf-body-frame" id="pdfViewerBody">
+                <div id="pdfCanvasContainer" class="pdf-canvas-container">
+                    <div class="pdf-loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Rendering halaman PDF Laporan...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- MODAL 5: WORD-STYLE PRINT UI -->
+    <div class="word-print-overlay" id="wordPrintModal">
+        <div class="word-print-container">
+            <!-- Left Sidebar -->
+            <div class="word-print-sidebar">
+                <div class="sidebar-top">
+                    <button class="word-back-btn" onclick="closeModal('wordPrintModal')">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h2 class="word-print-title">Print</h2>
+                </div>
+                
+                <div class="print-action-row">
+                    <button class="big-print-btn" id="executeNativePrintBtn" onclick="executeNativePrint()">
+                        <i class="fa-solid fa-print"></i>
+                        <span>Print</span>
+                    </button>
+                    <div class="copies-control">
+                        <label>Copies:</label>
+                        <input type="number" value="1" min="1" class="copies-input">
+                    </div>
+                </div>
+
+                <div class="print-settings-group">
+                    <label>Printer</label>
+                    <div class="mock-dropdown printer-dropdown">
+                        <i class="fa-solid fa-print text-green"></i>
+                        <div class="mock-dropdown-text">
+                            <strong>Microsoft Print to PDF</strong>
+                            <span>Ready</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                    <a href="#" class="printer-props-link">Printer Properties</a>
+                </div>
+
+                <div class="print-settings-group">
+                    <label>Settings</label>
+                    <div class="mock-dropdown">
+                        <i class="fa-solid fa-file-lines"></i>
+                        <div class="mock-dropdown-text">
+                            <strong>Print All Pages</strong>
+                            <span>The whole thing</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                    <div class="mock-dropdown">
+                        <i class="fa-solid fa-file-image"></i>
+                        <div class="mock-dropdown-text">
+                            <strong>Print One Sided</strong>
+                            <span>Only print on one side of the...</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                    <div class="mock-dropdown">
+                        <i class="fa-solid fa-book-open"></i>
+                        <div class="mock-dropdown-text">
+                            <strong>Collated</strong>
+                            <span>1,2,3  1,2,3  1,2,3</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                    <div class="mock-dropdown">
+                        <i class="fa-solid fa-file"></i>
+                        <div class="mock-dropdown-text">
+                            <strong>Portrait Orientation</strong>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                    <div class="mock-dropdown">
+                        <i class="fa-solid fa-crop-simple"></i>
+                        <div class="mock-dropdown-text">
+                            <strong>A4</strong>
+                            <span>21 cm x 29.7 cm</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                    <div class="mock-dropdown">
+                        <i class="fa-solid fa-table-cells"></i>
+                        <div class="mock-dropdown-text">
+                            <strong>Normal Margins</strong>
+                            <span>Top: 2.54 cm Bottom: 2.54 c...</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Preview Area -->
+            <div class="word-print-preview-area">
+                <div class="preview-scroll-container">
+                    <div id="wordPrintCanvasContainer" class="word-pdf-canvas-container">
+                        <div class="pdf-loading-spinner">
+                            <div class="spinner"></div>
+                            <p>Loading Preview...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="preview-footer">
+                    <div class="page-controls">
+                        <i class="fa-solid fa-caret-left"></i>
+                        <span class="page-box">1</span> of 1
+                        <i class="fa-solid fa-caret-right"></i>
+                    </div>
+                    <div class="zoom-controls">
+                        <span>75%</span>
+                        <i class="fa-solid fa-minus"></i>
+                        <input type="range" min="10" max="200" value="75">
+                        <i class="fa-solid fa-plus"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 6: LOGIN / REGISTER (FIREBASE AUTH) -->
+    <div id="authModal" class="auth-full-screen" style="display: flex; z-index: 2000;">
+        <div class="auth-content-left">
+            <div class="auth-text">
+                <h1 class="auth-title" style="white-space: nowrap;">Selamat Datang di Website Siperka</h1>
+                <p class="auth-subtitle" id="authSubtitle">Silakan masuk (login) ke akun Anda terlebih dahulu untuk mengakses halaman ini.</p>
+            </div>
+            
+            <div class="auth-card">
+                <div class="auth-logo-header" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px;">
+                    <img src="images/Logo_Aplikasi_Biru.png" alt="Logo SIPERKA" class="auth-logo-img">
+                    <img src="images/Logo_Tulisan_Berwarna.png" alt="Text Logo SIPERKA" style="height: 40px; object-fit: contain;">
+                </div>
+                
+                <div class="auth-tabs-custom">
+                    <button class="auth-tab-btn-custom active" id="tabLogin" onclick="switchAuthTab('login')" style="color: var(--brand-sky); border-bottom: 2px solid var(--brand-sky);">Login</button>
+                    <button class="auth-tab-btn-custom" id="tabRegister" onclick="switchAuthTab('register')">Register Petugas</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group-custom">
+                        <label>NIP</label>
+                        <input type="text" id="loginNIP" class="form-control-custom" placeholder="Masukan Nomer NIP..." required>
+                    </div>
+                    <div class="form-group-custom">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" class="form-control-custom" placeholder="Masukan Password Anda..." required>
+                    </div>
+
+                    <button type="submit" class="btn-login-custom">Login</button>
+                </form>
+
+                <!-- Register Form (Hidden by default) -->
+                <form id="registerForm" onsubmit="handleRegister(event)" style="display: none;">
+                    <div class="form-group-custom">
+                        <label>NIP Petugas</label>
+                        <input type="text" id="regNIP" class="form-control-custom" placeholder="Masukan Nomer NIP..." required>
+                    </div>
+                    <div class="form-group-custom">
+                        <label>Nama Lengkap</label>
+                        <input type="text" id="regName" class="form-control-custom" placeholder="Masukan Nama Lengkap Anda..." required>
+                    </div>
+                    <div class="form-group-custom">
+                        <label>Email</label>
+                        <input type="email" id="regEmail" class="form-control-custom" placeholder="Masukan Email Aktif Anda..." required>
+                    </div>
+                    <div class="form-group-custom">
+                        <label>Password(Min. 14 Karakter)</label>
+                        <input type="password" id="regPassword" class="form-control-custom" placeholder="Buat Password Anda..." minlength="14" required>
+                    </div>
+                    <button type="submit" class="btn-register-custom">Daftar Sebagai Petugas</button>
+                </form>
+            </div>
+        </div>
+        <div class="auth-empty-right"></div>
+    </div>
+
+    <!-- MODAL 7: ASSIGN JADWAL -->
+    <div class="modal-overlay" id="assignModal">
+        <div class="modal-container glass-modal">
+            <div class="modal-header">
+                <h3 id="assignModalTitle"><i class="fa-solid fa-calendar-plus icon-accent"></i> Set Pemeriksaan (Penugasan)</h3>
+                <button class="modal-close" onclick="closeModal('assignModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="assignForm" onsubmit="handleAssign(event)">
+                    <div class="form-group">
+                        <label>Rangkaian KA</label>
+                        <select id="assignTrainId" class="form-control" required style="background: var(--bg-surface); color: var(--text-main);">
+                            <option value="">-- Memuat daftar rangkaian... --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Pilih Petugas (User)</label>
+                        <select id="assignPetugas" class="form-control" required style="background: var(--bg-surface); color: var(--text-main);">
+                            <option value="">-- Memuat daftar petugas... --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal Pemeriksaan (Target)</label>
+                        <input type="date" id="assignDate" class="form-control" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('assignModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Tugaskan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION SYSTEM -->
+    <!-- MODAL 8: EDIT JADWAL -->
+    <div class="modal-overlay" id="editScheduleModal">
+        <div class="modal-container glass-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-calendar-check icon-accent"></i> Edit Jadwal</h3>
+                <button class="modal-close" onclick="closeModal('editScheduleModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editScheduleForm" onsubmit="handleEditScheduleSubmit(event)">
+                    <input type="hidden" id="editSchedId">
+                    <div class="form-group">
+                        <label>Rangkaian KA</label>
+                        <select id="editSchedTrainId" class="form-control" required style="background: var(--bg-surface); color: var(--text-main);">
+                            <option value="">-- Memuat daftar rangkaian... --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Pilih Petugas (User)</label>
+                        <select id="editSchedPetugas" class="form-control" required style="background: var(--bg-surface); color: var(--text-main);">
+                            <option value="">-- Memuat daftar petugas... --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal Pemeriksaan (Target)</label>
+                        <input type="date" id="editSchedDate" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="editSchedStatus" class="form-control" required style="background: var(--bg-surface); color: var(--text-main);">
+                            <option value="Menunggu">Menunggu</option>
+                            <option value="Telat">Telat</option>
+                            <option value="Selesai">Selesai</option>
+                            <option value="Terlambat">Terlambat</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('editScheduleModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 9: DB ROW DETAIL -->
+    <div class="modal-overlay" id="dbDetailModal">
+        <div class="modal-container glass-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-list-ul icon-accent"></i> Detail Data</h3>
+                <button class="modal-close" onclick="closeModal('dbDetailModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <table class="custom-table" style="width: 100%; text-align: left;">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">Kolom</th>
+                            <th>Nilai</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dbDetailBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer" style="margin-top: 15px;">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('dbDetailModal')">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    </div>
+
+    <!-- MODAL 10: DB INSERT NEW ROW -->
+    <div class="modal-overlay" id="dbInsertModal">
+        <div class="modal-container glass-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-plus-circle icon-accent"></i> Tambah Data <span id="dbInsertTableName" style="color: var(--brand-sky);"></span></h3>
+                <button class="modal-close" onclick="closeModal('dbInsertModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+                <form id="dbInsertForm" onsubmit="submitDbInsert(event)">
+                    <div id="dbInsertFields" style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Fields populated by JS -->
+                    </div>
+                    <div class="modal-footer" style="margin-top: 20px;">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('dbInsertModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Data</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 11: DB EDIT ROW -->
+    <div class="modal-overlay" id="dbEditModal">
+        <div class="modal-container glass-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen-to-square icon-accent"></i> Edit Data <span id="dbEditTableName" style="color: var(--brand-sky);"></span></h3>
+                <button class="modal-close" onclick="closeModal('dbEditModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+                <form id="dbEditForm" onsubmit="submitDbEdit(event)">
+                    <!-- Hidden field untuk nyimpan rowId -->
+                    <input type="hidden" id="dbEditRowId" name="_rowId">
+                    <div id="dbEditFields" style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Fields populated by JS -->
+                    </div>
+                    <div class="modal-footer" style="margin-top: 20px;">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal('dbEditModal')">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- LOADING OVERLAY -->
+    <div class="loading-overlay" id="globalLoading">
+        <div class="spinner"></div>
+        <p id="loadingText">Memproses data...</p>
+    </div>
+
+    <script src="auth.js?v=2"></script>
+    <script src="script_app.js?v=1790163268553"></script>
+</body>
+</html>
+
+

@@ -1,0 +1,18 @@
+<!-- VIEW 3: HASIL PEMERIKSAAN -->
+            <section id="hasilView" class="view-page">
+                <div class="page-title-box flex-between">
+                    <div>
+                        <h2>Hasil Pemeriksaan Sarana</h2>
+                        <p>Kartu rekapitulasi kelaikan perangkat untuk setiap rangkaian kereta api.</p>
+                    </div>
+                    <div class="filter-pills">
+                        <button class="filter-pill active" onclick="filterHasilCards('all', this)">Semua</button>
+                        <button class="filter-pill" onclick="filterHasilCards('perfect', this)">100% Baik</button>
+                        <button class="filter-pill" onclick="filterHasilCards('issue', this)">Ada Catatan</button>
+                    </div>
+                </div>
+
+                <div class="hasil-cards-grid" id="hasilCardsGrid">
+                    <!-- Cards will be dynamically injected -->
+                </div>
+            </section>
